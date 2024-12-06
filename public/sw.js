@@ -7,29 +7,43 @@ importScripts('https://unpkg.com/@babel/standalone@7.26.2/babel.min.js');
 // @see https://developers.google.com/web/fundamentals/primers/service-workers/lifecycle#clientsclaim
 self.addEventListener('activate', event=>event.waitUntil(clients.claim()));
 
-let map = {
+let module_map = {
   'react': {global: 'React',
     url: 'https://unpkg.com/react@18/umd/react.development.js'},
   'react-dom': {global: 'ReactDOM',
     url: 'https://unpkg.com/react-dom@18/umd/react-dom.development.js'},
 };
+let pkgroot_map = {
+  '/pages/': '/.lif/pkgroot/pages/',
+};
 const headers = new Headers({
   'Content-Type': 'application/javascript',
 });
-
+const is_prefix = (url, prefix)=>{
+  if (url.startsWith(prefix))
+    return {prefix: prefix, rest: url.substr(prefix.length)};
+};
 const url_ext = url=>url.pathname.match(/\.[^./]*$/)?.[0];
 async function _sw_fetch(event){
   let {request, request: {url}} = event;
+  const _url = url; // orig
   const u = URL.parse(url);
   const ext = url_ext(u);
+  let pathname = u.pathname;
   // console.log('before req', url);
   if (request.method!='GET')
     return fetch(request);
   let v;
-  console.log('Req', url, ext, u.pathname);
-  if (u.pathname.startsWith('/.lif/esm/')){
-    let module = u.pathname.slice('/.lif/esm/'.length);
-    if (!(v=map[module]))
+  console.log('Req', url, ext, pathname);
+  for (let i in pkgroot_map){
+    if (v=is_prefix(pathname, i)){
+      url = pathname = pkgroot_map[i]+v.rest;
+      break;
+    }
+  }
+  if (v=is_prefix(pathname, '/.lif/esm/')){
+    let module = v.prefix;
+    if (!(v=module_map[module]))
       throw "no module found "+module;
     let response = await fetch(v.url);
     let body = await response.text();
@@ -41,12 +55,12 @@ async function _sw_fetch(event){
       head.appendChild(script);
       export default window.${v.global};
     `;
-    console.log(`module ${u.pathname} loaded`);
+    console.log(`module ${pathname} loaded`);
     return new Response(res, {headers});
-  } else if (u.pathname=='/favicon.ico'){
+  } else if (pathname=='/favicon.ico'){
     return await fetch('https://www.google.com/favicon.ico');
   } else if (ext=='.css'){
-    let response = await fetch(url);
+    let response = await fetch(pathname);
     let body = await response.text();
     return new Response(`
         //TODO We don't track instances, so 2x imports will result in 2x style tags
@@ -59,19 +73,21 @@ async function _sw_fetch(event){
       `,
       {headers}
     );
-  } else if (ext=='.jsx'){
-    let response = await fetch(url);
+  } else if (ext=='.jsx' || ext=='.tsx'){
+    let response = await fetch(pathname);
     let body = await response.text();
     let babel_opt = {
       presets: ['react'],
       plugins: [],
       sourceMaps: true,
     };
+    if (ext=='.tsx')
+      babel_opt.presents.push('typescript');
     let res = await Babel.transform(body, babel_opt);
-    console.log('babel: '+u.pathname);
+    console.log('babel: '+pathname);
     return new Response(res.code, {headers});
   } else if (ext=='.js'){
-    let response = await fetch(url);
+    let response = await fetch(pathname);
     let body = await response.text();
     return new Response(body, {headers});
   } else

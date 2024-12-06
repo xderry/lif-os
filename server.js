@@ -1,19 +1,23 @@
+// to lint: $ eslint server.js public/sw.js public/index.js
 import serve from 'serve-handler';
 import http from 'http';
 import process from 'process';
+
+const is_prefix = (url, prefix)=>{
+  if (url.startsWith(prefix))
+    return {prefix: prefix, rest: url.substr(prefix.length)};
+};
 
 const server = http.createServer((request, response)=>{
   const opt = {directoryListing: false, cleanUrls: false};
   const url = request.url;
   let file;
-  const is_prefix = prefix=>{
-    if (url.startsWith(prefix))
-      return {prefix: prefix, rest: url.substr(prefix.length)};
-  };
   let v;
-  if (v=is_prefix('/.lif/'));
-  else if (v=is_prefix('/.lif/pkgroot/'))
-    file = v.rest;
+  if (v=is_prefix(url, '/.lif/'));
+  else if (v=is_prefix(url, '/.lif/pkgroot/'))
+    file = '/'+v.rest;
+  else if (url=='/')
+    file = '/public/index.html';
   else
     file = '/public'+url;
   if (file)

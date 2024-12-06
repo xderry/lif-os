@@ -32,7 +32,7 @@ export default [...compat.extends("eslint:recommended"), {
   files: ["**/*.jsx", "**/*.js", "**/*.jsm"],
   rules: {
     "no-cond-assign": 'off',
-    "no-unused-vars": 'warn',
+    "no-unused-vars": 'off',
     "no-constant-condition": 'off',
   },
 }];
