@@ -13,9 +13,9 @@ const server = http.createServer((request, response)=>{
   const url = request.url;
   let file;
   let v;
-  if (v=is_prefix(url, '/.lif/'));
-  else if (v=is_prefix(url, '/.lif/pkgroot/'))
+  if (v=is_prefix(url, '/.lif/pkgroot/'))
     file = '/'+v.rest;
+  else if (v=is_prefix(url, '/.lif/'));
   else if (url=='/')
     file = '/public/index.html';
   else

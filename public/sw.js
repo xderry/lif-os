@@ -24,17 +24,20 @@ const is_prefix = (url, prefix)=>{
     return {prefix: prefix, rest: url.substr(prefix.length)};
 };
 const url_ext = url=>url.pathname.match(/\.[^./]*$/)?.[0];
+const url_file = url=>url.pathname.match(/(^|\/)?([^/]+)$/)?.[2];
+
 async function _sw_fetch(event){
   let {request, request: {url}} = event;
   const _url = url; // orig
   const u = URL.parse(url);
-  const ext = url_ext(u);
+  u.ext = url_ext(u);
+  u.filename = url_file(u);
   let pathname = u.pathname;
   // console.log('before req', url);
   if (request.method!='GET')
     return fetch(request);
   let v;
-  console.log('Req', url, ext, pathname);
+  console.log('Req', url, u.ext, u.pathname);
   for (let i in pkgroot_map){
     if (v=is_prefix(pathname, i)){
       url = pathname = pkgroot_map[i]+v.rest;
@@ -59,7 +62,7 @@ async function _sw_fetch(event){
     return new Response(res, {headers});
   } else if (pathname=='/favicon.ico'){
     return await fetch('https://www.google.com/favicon.ico');
-  } else if (ext=='.css'){
+  } else if (u.ext=='.css'){
     let response = await fetch(pathname);
     let body = await response.text();
     return new Response(`
@@ -73,7 +76,7 @@ async function _sw_fetch(event){
       `,
       {headers}
     );
-  } else if (ext=='.jsx' || ext=='.tsx'){
+  } else if (u.ext=='.jsx' || u.ext=='.tsx'){
     let response = await fetch(pathname);
     let body = await response.text();
     let babel_opt = {
@@ -81,12 +84,14 @@ async function _sw_fetch(event){
       plugins: [],
       sourceMaps: true,
     };
-    if (ext=='.tsx')
-      babel_opt.presents.push('typescript');
+    if (u.ext=='.tsx'){
+      babel_opt.presets.push('typescript');
+      babel_opt.filename = u.filename;
+    }
     let res = await Babel.transform(body, babel_opt);
     console.log('babel: '+pathname);
     return new Response(res.code, {headers});
-  } else if (ext=='.js'){
+  } else if (u.ext=='.js'){
     let response = await fetch(pathname);
     let body = await response.text();
     return new Response(body, {headers});
