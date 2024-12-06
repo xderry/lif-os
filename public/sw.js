@@ -13,8 +13,11 @@ let module_map = {
   'react-dom': {global: 'ReactDOM',
     url: 'https://unpkg.com/react-dom@18/umd/react-dom.development.js'},
 };
+let ext_react = ['.ts', '.tsx', '/index.ts', '/index.tsx'];
 let pkgroot_map = {
-  '/pages/': '/.lif/pkgroot/pages/',
+  '/pages/': {path: '/.lif/pkgroot/pages/'},
+  '/components/': {path: '/.lif/pkgroot/components/', ext: ext_react},
+  '/hooks/': {path: '/.lif/pkgroot/hooks/', ext: ext_react},
 };
 const headers = new Headers({
   'Content-Type': 'application/javascript',
@@ -25,23 +28,31 @@ const is_prefix = (url, prefix)=>{
 };
 const url_ext = url=>url.pathname.match(/\.[^./]*$/)?.[0];
 const url_file = url=>url.pathname.match(/(^|\/)?([^/]+)$/)?.[2];
+const url_parse = url=>{
+  const u = URL.parse(url);
+  u.ext = url_ext(u);
+  u.filename = url_file(u);
+  return u;
+};
 
 async function _sw_fetch(event){
   let {request, request: {url}} = event;
   const _url = url; // orig
-  const u = URL.parse(url);
-  u.ext = url_ext(u);
-  u.filename = url_file(u);
+  const u = url_parse(url);
   let pathname = u.pathname;
   // console.log('before req', url);
   if (request.method!='GET')
     return fetch(request);
   let v;
   console.log('Req', url, u.ext, u.pathname);
-  for (let i in pkgroot_map){
-    if (v=is_prefix(pathname, i)){
-      url = pathname = pkgroot_map[i]+v.rest;
-      break;
+  let mod;
+  if (v=is_prefix(pathname, '/.lif/pkgroot/')){
+    let pkgname = '/'+v.rest;
+    for (let i in pkgroot_map){
+      if (v=is_prefix(pkgname, i)){
+        mod = pkgroot_map[i];
+        break;
+      }
     }
   }
   if (v=is_prefix(pathname, '/.lif/esm/')){
@@ -76,19 +87,37 @@ async function _sw_fetch(event){
       `,
       {headers}
     );
-  } else if (u.ext=='.jsx' || u.ext=='.tsx'){
-    let response = await fetch(pathname);
+  } else if (u.ext=='.jsx' || u.ext=='.tsx' || u.ext=='.ts' ||
+      mod?.ext && !u.ext){
+    let response, _pathname;
+    if (u.ext)
+      response = await fetch(pathname);
+    else { // .ts .tsx module
+      console.log('tsx module', pathname, mod.ext)
+      for (let i=0; i<mod.ext.length; i++){
+        _pathname = pathname+mod.ext[i];
+        response = await fetch(_pathname);
+        console.log(pathname, 'to', _pathname, response.status);
+        if (response.status==200)
+          break;
+      }
+    }
+    if (response?.status!=200)
+      return response;
     let body = await response.text();
-    let babel_opt = {
-      presets: ['react'],
+    console.log(response);
+    let opt = {
+      presets: [],
       plugins: [],
       sourceMaps: true,
     };
-    if (u.ext=='.tsx'){
-      babel_opt.presets.push('typescript');
-      babel_opt.filename = u.filename;
+    if (u.ext=='.tsx' || u.ext=='.ts'){
+      opt.presets.push('typescript');
+      opt.filename = u.filename;
     }
-    let res = await Babel.transform(body, babel_opt);
+    if (u.ext=='.tsx' || u.ext=='.jsx')
+      opt.presets.push('react');
+    let res = await Babel.transform(body, opt);
     console.log('babel: '+pathname);
     return new Response(res.code, {headers});
   } else if (u.ext=='.js'){
