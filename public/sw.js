@@ -56,7 +56,7 @@ async function _sw_fetch(event){
     }
   }
   if (v=is_prefix(pathname, '/.lif/esm/')){
-    let module = v.prefix;
+    let module = v.rest;
     if (!(v=module_map[module]))
       throw "no module found "+module;
     let response = await fetch(v.url);
@@ -93,13 +93,14 @@ async function _sw_fetch(event){
     if (u.ext)
       response = await fetch(pathname);
     else { // .ts .tsx module
-      console.log('tsx module', pathname, mod.ext)
       for (let i=0; i<mod.ext.length; i++){
         _pathname = pathname+mod.ext[i];
         response = await fetch(_pathname);
-        console.log(pathname, 'to', _pathname, response.status);
-        if (response.status==200)
+        if (response.status==200){
+          console.log(pathname, ' + ', mod.ext[i], response.status);
           break;
+        }
+        console.log('is not', pathname, ' + ', mod.ext[i], response.status);
       }
     }
     if (response?.status!=200)
@@ -118,6 +119,7 @@ async function _sw_fetch(event){
     if (u.ext=='.tsx' || u.ext=='.jsx')
       opt.presets.push('react');
     let res = await Babel.transform(body, opt);
+    // babel --presets typescript,react app.tsx
     console.log('babel: '+pathname);
     return new Response(res.code, {headers});
   } else if (u.ext=='.js'){
@@ -130,9 +132,10 @@ async function _sw_fetch(event){
 
 async function sw_fetch(event){
   try {
-    return await _sw_fetch(event);
+    return _sw_fetch(event);
   } catch (err){
-    console.log("Serviceworker sw_fetch: "+err);
+    console.log("ServiceWorker sw_fetch: "+err);
+    return new Response('sw_fetch error: '+err, {status: 404});
   }
 }
 
@@ -140,6 +143,6 @@ self.addEventListener('fetch', event=>{
   try {
     event.respondWith(sw_fetch(event));
   } catch (err){
-    console.log("Serviceworker NetworkError: "+err);
+    console.log("ServiceWorker NetworkError: "+err);
   }
 });
