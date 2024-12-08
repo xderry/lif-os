@@ -1,7 +1,7 @@
 /*global clients,importScripts*/ // ServiceWorkerGlobalScope
 
 /*global Babel*/
-importScripts('https://unpkg.com/@babel/standalone@7.26.2/babel.min.js');
+importScripts('https://unpkg.com/@babel/standalone@7.26.4/babel.js');
 
 // this is needed to activate the worker immediately without reload
 // @see https://developers.google.com/web/fundamentals/primers/service-workers/lifecycle#clientsclaim
@@ -38,7 +38,7 @@ const url_parse = url=>{
 async function _sw_fetch(event){
   let {request, request: {url}} = event;
   const _url = url; // orig
-  const u = url_parse(url);
+  let u = url_parse(url);
   let pathname = u.pathname;
   // console.log('before req', url);
   if (request.method!='GET')
@@ -93,15 +93,19 @@ async function _sw_fetch(event){
     if (u.ext)
       response = await fetch(pathname);
     else { // .ts .tsx module
+      let ext;
       for (let i=0; i<mod.ext.length; i++){
-        _pathname = pathname+mod.ext[i];
-        response = await fetch(_pathname);
-        if (response.status==200){
-          console.log(pathname, ' + ', mod.ext[i], response.status);
+        ext = mod.ext[i];
+        _pathname = pathname+ext;
+        response = await fetch(pathname+ext);
+        if (response.status==200)
           break;
-        }
-        console.log('is not', pathname, ' + ', mod.ext[i], response.status);
+        console.log('is not', pathname, ' + ', ext, response.status);
       }
+      if (response.status!=200)
+        return response;
+      console.log(pathname, ' + ', ext, response.status);
+      u = url_parse(url+ext);
     }
     if (response?.status!=200)
       return response;
@@ -118,7 +122,13 @@ async function _sw_fetch(event){
     }
     if (u.ext=='.tsx' || u.ext=='.jsx')
       opt.presets.push('react');
-    let res = await Babel.transform(body, opt);
+    let res;
+    try {
+      res = await Babel.transform(body, opt);
+    } catch (err){
+      console.log('babel FAILED: '+pathname, err);
+      throw err;
+    }
     // babel --presets typescript,react app.tsx
     console.log('babel: '+pathname);
     return new Response(res.code, {headers});
