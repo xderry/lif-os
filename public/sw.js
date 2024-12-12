@@ -7,11 +7,25 @@ importScripts('https://unpkg.com/@babel/standalone@7.26.4/babel.js');
 // @see https://developers.google.com/web/fundamentals/primers/service-workers/lifecycle#clientsclaim
 self.addEventListener('activate', event=>event.waitUntil(clients.claim()));
 
+// see index.html for coresponding import maps
 let module_map = {
   'react': {global: 'React',
     url: 'https://unpkg.com/react@18/umd/react.development.js'},
   'react-dom': {global: 'ReactDOM',
     url: 'https://unpkg.com/react-dom@18/umd/react-dom.development.js'},
+  'framer-motion': {global: 'FramerMotion',
+    url: 'https://unpkg.com/framer-motion@11.11.17/dist/es/index.mjs'},
+   // next/dynamic ->
+   //   https://unpkg.com/browse/next@15.0.4/dist/esm/shared/lib/dynamic.js
+  'next/': { 
+    ext: '.js',
+    url_base: 'https://unpkg.com/browse/next@15.0.4/dist/esm/shared/lib/'},
+};
+const module_get = mod_name=>{
+    let mod;
+    if (mod=module_map[mod_name])
+      return mod;
+    //for (let m of module_map)
 };
 let ext_react = ['.ts', '.tsx', '/index.ts', '/index.tsx'];
 let pkgroot_map = {
@@ -57,18 +71,22 @@ async function _sw_fetch(event){
   }
   if (v=is_prefix(pathname, '/.lif/esm/')){
     let module = v.rest;
-    if (!(v=module_map[module]))
+    let mod;
+    if (!(mod=module_map[module]))
       throw "no module found "+module;
-    let response = await fetch(v.url);
+    let response = await fetch(mod.url);
     let body = await response.text();
-    let res = `
-      const head = document.getElementsByTagName('head')[0];
-      const script = document.createElement('script');
-      script.setAttribute('type', 'text/javascript');
-      script.appendChild(document.createTextNode(${JSON.stringify(body)}));
-      head.appendChild(script);
-      export default window.${v.global};
-    `;
+    let res = body;
+    if (mod.global){
+      res = `
+        const head = document.getElementsByTagName('head')[0];
+        const script = document.createElement('script');
+        script.setAttribute('type', 'text/javascript');
+        script.appendChild(document.createTextNode(${JSON.stringify(body)}));
+        head.appendChild(script);
+        export default window.${mod.global};
+      `;
+    }
     console.log(`module ${pathname} loaded`);
     return new Response(res, {headers});
   } else if (pathname=='/favicon.ico'){
@@ -93,18 +111,19 @@ async function _sw_fetch(event){
     if (u.ext)
       response = await fetch(pathname);
     else { // .ts .tsx module
-      let ext;
-      for (let i=0; i<mod.ext.length; i++){
-        ext = mod.ext[i];
+      let ext, is_not = [];
+      for (ext of mod.ext){
         _pathname = pathname+ext;
         response = await fetch(pathname+ext);
         if (response.status==200)
           break;
-        console.log('is not', pathname, ' + ', ext, response.status);
+        is_not.push(`${pathname}+${ext} ${response.status}`);
       }
-      if (response.status!=200)
+      if (response.status!=200){
+        console.log('is not', is_not);
         return response;
-      console.log(pathname, ' + ', ext, response.status);
+      }
+      console.log(`${pathname}+${ext} ${response.status}`);
       u = url_parse(url+ext);
     }
     if (response?.status!=200)
