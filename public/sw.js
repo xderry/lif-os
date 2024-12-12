@@ -7,6 +7,10 @@ importScripts('https://unpkg.com/@babel/standalone@7.26.4/babel.js');
 // @see https://developers.google.com/web/fundamentals/primers/service-workers/lifecycle#clientsclaim
 self.addEventListener('activate', event=>event.waitUntil(clients.claim()));
 
+const is_prefix = (url, prefix)=>{
+  if (url.startsWith(prefix))
+    return {prefix: prefix, rest: url.substr(prefix.length)};
+};
 // see index.html for coresponding import maps
 let mod_map = {
   'react': {global: 'React',
@@ -16,22 +20,27 @@ let mod_map = {
   'framer-motion': {global: 'FramerMotion',
     url: 'https://unpkg.com/framer-motion@11.11.17/dist/es/index.mjs'},
    // next/dynamic ->
-   //   https://unpkg.com/browse/next@15.0.4/dist/esm/shared/lib/dynamic.js
+   //   https://unpkg.com/next@15.0.4/dist/esm/shared/lib/dynamic.js
   'next/': { 
     ext: '.js',
-    url_base: 'https://unpkg.com/browse/next@15.0.4/dist/esm/shared/lib/'},
+    url_base: 'https://unpkg.com/next@15.0.4/dist/esm/shared/lib/'},
 };
-const mod_get = name=>{
-    let mod;
-    if (mod=mod_map[name])
-      return mod;
-    //for (let m of mod_map)
+const mod_get = pathname=>{
+  let mod, v;
+  if (mod=mod_map[pathname])
+    return {...mod, name: pathname};
+  for (let i in mod_map){
+    mod = mod_map[i];
+    if (i[i.length-1]=='/' && (v=is_prefix(pathname, i)))
+      return {...mod, name: i, rest: v.rest, url: mod.url_base+v.rest};
+  }
 };
 let ext_react = ['.ts', '.tsx', '/index.ts', '/index.tsx'];
 let pkg_map = {
   '/pages/': {path: '/.lif/pkgroot/pages/'},
   '/components/': {path: '/.lif/pkgroot/components/', ext: ext_react},
   '/hooks/': {path: '/.lif/pkgroot/hooks/', ext: ext_react},
+  '/contexts/': {path: '/.lif/pkgroot/contexts/', ext: ext_react},
 };
 const pkg_get = pathname=>{
   let v;
@@ -46,10 +55,6 @@ const pkg_get = pathname=>{
 const headers = new Headers({
   'Content-Type': 'application/javascript',
 });
-const is_prefix = (url, prefix)=>{
-  if (url.startsWith(prefix))
-    return {prefix: prefix, rest: url.substr(prefix.length)};
-};
 const url_ext = url=>url.pathname.match(/\.[^./]*$/)?.[0];
 const url_file = url=>url.pathname.match(/(^|\/)?([^/]+)$/)?.[2];
 const url_parse = url=>{
@@ -72,27 +77,28 @@ async function _sw_fetch(event){
   let pkg = pkg_get(pathname);
   if (v=is_prefix(pathname, '/.lif/esm/')){
     let module = v.rest;
-    let pkg;
-    if (!(pkg=mod_map[module]))
+    let mod;
+    if (!(mod=mod_get(module)))
       throw "no module found "+module;
-    let response = await fetch(pkg.url);
+    let response = await fetch(mod.url);
     let body = await response.text();
     let res = body;
-    if (pkg.global){
+    if (mod.global){
       res = `
         const head = document.getElementsByTagName('head')[0];
         const script = document.createElement('script');
         script.setAttribute('type', 'text/javascript');
         script.appendChild(document.createTextNode(${JSON.stringify(body)}));
         head.appendChild(script);
-        export default window.${pkg.global};
+        export default window.${mod.global};
       `;
     }
-    console.log(`module ${pathname} loaded`);
+    console.log(`module ${mod.name} loaded ${pathname} ${mod.url}`);
     return new Response(res, {headers});
-  } else if (pathname=='/favicon.ico'){
+  }
+  if (pathname=='/favicon.ico')
     return await fetch('https://www.google.com/favicon.ico');
-  } else if (u.ext=='.css'){
+  if (u.ext=='.css'){
     let response = await fetch(pathname);
     let body = await response.text();
     return new Response(`
@@ -106,8 +112,8 @@ async function _sw_fetch(event){
       `,
       {headers}
     );
-  } else if (u.ext=='.jsx' || u.ext=='.tsx' || u.ext=='.ts' ||
-      pkg?.ext && !u.ext){
+  }
+  if (['.jsx', '.tsx', '.ts'].includes(u.ext) || pkg?.ext && !u.ext){
     let response, _pathname;
     if (u.ext)
       response = await fetch(pathname);
@@ -153,12 +159,13 @@ async function _sw_fetch(event){
     // babel --presets typescript,react app.tsx
     console.log('babel: '+pathname);
     return new Response(res.code, {headers});
-  } else if (u.ext=='.js'){
+  }
+  if (u.ext=='.js'){
     let response = await fetch(pathname);
     let body = await response.text();
     return new Response(body, {headers});
-  } else
-    return fetch(request);
+  }
+  return fetch(request);
 }
 
 async function sw_fetch(event){
