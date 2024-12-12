@@ -8,7 +8,7 @@ importScripts('https://unpkg.com/@babel/standalone@7.26.4/babel.js');
 self.addEventListener('activate', event=>event.waitUntil(clients.claim()));
 
 // see index.html for coresponding import maps
-let module_map = {
+let mod_map = {
   'react': {global: 'React',
     url: 'https://unpkg.com/react@18/umd/react.development.js'},
   'react-dom': {global: 'ReactDOM',
@@ -21,17 +21,27 @@ let module_map = {
     ext: '.js',
     url_base: 'https://unpkg.com/browse/next@15.0.4/dist/esm/shared/lib/'},
 };
-const module_get = mod_name=>{
+const mod_get = name=>{
     let mod;
-    if (mod=module_map[mod_name])
+    if (mod=mod_map[name])
       return mod;
-    //for (let m of module_map)
+    //for (let m of mod_map)
 };
 let ext_react = ['.ts', '.tsx', '/index.ts', '/index.tsx'];
-let pkgroot_map = {
+let pkg_map = {
   '/pages/': {path: '/.lif/pkgroot/pages/'},
   '/components/': {path: '/.lif/pkgroot/components/', ext: ext_react},
   '/hooks/': {path: '/.lif/pkgroot/hooks/', ext: ext_react},
+};
+const pkg_get = pathname=>{
+  let v;
+  if (v=is_prefix(pathname, '/.lif/pkgroot/')){
+    let pkgname = '/'+v.rest;
+    for (let i in pkg_map){
+      if (v=is_prefix(pkgname, i))
+        return pkg_map[i];
+    }
+  }
 };
 const headers = new Headers({
   'Content-Type': 'application/javascript',
@@ -59,32 +69,23 @@ async function _sw_fetch(event){
     return fetch(request);
   let v;
   console.log('Req', url, u.ext, u.pathname);
-  let mod;
-  if (v=is_prefix(pathname, '/.lif/pkgroot/')){
-    let pkgname = '/'+v.rest;
-    for (let i in pkgroot_map){
-      if (v=is_prefix(pkgname, i)){
-        mod = pkgroot_map[i];
-        break;
-      }
-    }
-  }
+  let pkg = pkg_get(pathname);
   if (v=is_prefix(pathname, '/.lif/esm/')){
     let module = v.rest;
-    let mod;
-    if (!(mod=module_map[module]))
+    let pkg;
+    if (!(pkg=mod_map[module]))
       throw "no module found "+module;
-    let response = await fetch(mod.url);
+    let response = await fetch(pkg.url);
     let body = await response.text();
     let res = body;
-    if (mod.global){
+    if (pkg.global){
       res = `
         const head = document.getElementsByTagName('head')[0];
         const script = document.createElement('script');
         script.setAttribute('type', 'text/javascript');
         script.appendChild(document.createTextNode(${JSON.stringify(body)}));
         head.appendChild(script);
-        export default window.${mod.global};
+        export default window.${pkg.global};
       `;
     }
     console.log(`module ${pathname} loaded`);
@@ -106,24 +107,25 @@ async function _sw_fetch(event){
       {headers}
     );
   } else if (u.ext=='.jsx' || u.ext=='.tsx' || u.ext=='.ts' ||
-      mod?.ext && !u.ext){
+      pkg?.ext && !u.ext){
     let response, _pathname;
     if (u.ext)
       response = await fetch(pathname);
     else { // .ts .tsx module
-      let ext, is_not = [];
-      for (ext of mod.ext){
+      let ext, is_not = [], res_status;
+      for (ext of pkg.ext){
         _pathname = pathname+ext;
         response = await fetch(pathname+ext);
+        res_status = pathname+ext+' '+response.status;
         if (response.status==200)
           break;
-        is_not.push(`${pathname}+${ext} ${response.status}`);
+        is_not.push(res_status);
       }
       if (response.status!=200){
-        console.log('is not', is_not);
+        console.log('failed module '+pathname+'. is not:', is_not);
         return response;
       }
-      console.log(`${pathname}+${ext} ${response.status}`);
+      console.log(res_status);
       u = url_parse(url+ext);
     }
     if (response?.status!=200)
