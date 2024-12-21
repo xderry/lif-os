@@ -13,16 +13,18 @@ const is_prefix = (url, prefix)=>{
 };
 // see index.html for coresponding import maps
 let mod_map = {
-  'react': {global: 'React',
+  'react': {type: 'umd',
     url: 'https://unpkg.com/react@18/umd/react.development.js'},
+  'react/jsx-runtime': {type: 'cjs',
+    // https://unpkg.com/jsx-runtime@1.2.0/index.js
+    url_base: 'https://unpkg.com/jsx-runtime@1.2.0/'},
   'react-dom': {global: 'ReactDOM',
     url: 'https://unpkg.com/react-dom@18/umd/react-dom.development.js'},
-  'framer-motion': {global: 'FramerMotion',
+  'framer-motion': {type: 'esm',
     url: 'https://unpkg.com/framer-motion@11.11.17/dist/es/index.mjs'},
-   // next/dynamic ->
-   //   https://unpkg.com/next@15.0.4/dist/esm/shared/lib/dynamic.js
   'next/': { 
-    ext: '.js',
+    // https://unpkg.com/next@15.0.4/dist/esm/shared/lib/dynamic.js
+    type: 'esm', ext: '.js',
     url_base: 'https://unpkg.com/next@15.0.4/dist/esm/shared/lib/'},
 };
 const mod_get = pathname=>{
@@ -68,13 +70,16 @@ async function _sw_fetch(event){
   let {request, request: {url}} = event;
   const _url = url; // orig
   let u = url_parse(url);
+  let external = u.origin!=self.location.origin;
   let pathname = u.pathname;
   // console.log('before req', url);
   if (request.method!='GET')
     return fetch(request);
   let v;
-  console.log('Req', url, u.ext, u.pathname);
+  console.log('Req', _url, url, u.ext, u.pathname);
   let pkg = pkg_get(pathname);
+  if (external)
+    return fetch(request);
   if (v=is_prefix(pathname, '/.lif/esm/')){
     let module = v.rest;
     let mod;
@@ -97,7 +102,7 @@ async function _sw_fetch(event){
     return new Response(res, {headers});
   }
   if (pathname=='/favicon.ico')
-    return await fetch('https://www.google.com/favicon.ico');
+    return await fetch('https://raw.githubusercontent.com/DustinBrett/daedalOS/refs/heads/main/public/favicon.ico');
   if (u.ext=='.css'){
     let response = await fetch(pathname);
     let body = await response.text();

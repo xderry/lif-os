@@ -3,7 +3,7 @@
     const registration = await navigator.serviceWorker.register('/sw.js');
     await navigator.serviceWorker.ready;
     const launch = async()=>{
-      await import("./pages/index.tsx");
+      await import(window.launch_url || './pages/index.tsx');
     };
     // this launches the React app if the SW has been installed before or
     // immediately after registration
