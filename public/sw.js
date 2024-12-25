@@ -63,10 +63,10 @@ let mod_map = {
       createPortal createRoot findDOMNode flushSync hydrate hydrateRoot render
       unmountComponentAtNode unstable_batchedUpdates
       unstable_renderSubtreeIntoContainer version`,
-    // esm: export exports as default;
     // amd: exports.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED = ...
-    // esm: export exports.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED as __SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED;
     // amd: exports.createPortal = ...
+    // esm: export exports as default;
+    // esm: export exports.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED as __SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED;
     // esm: export exports.createPortal as createPortal;
   },
   'react-dom-global': {type: 'global', global: 'ReactDOM',
@@ -75,20 +75,20 @@ let mod_map = {
       createPortal createRoot findDOMNode flushSync hydrate hydrateRoot render
       unmountComponentAtNode unstable_batchedUpdates
       unstable_renderSubtreeIntoContainer version`,
-    // out: export ReactDOM as default;
-    // out: export ReactDOM.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED as __SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED;
-    // out: export ReactDOM.createPortal as createPortal;
+    // esm: export ReactDOM as default;
+    // esm: export ReactDOM.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED as __SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED;
+    // esm: export ReactDOM.createPortal as createPortal;
   },
   'canvas-confetti': {type: 'cjs',
     url: 'https://unpkg.com/canvas-confetti@1.9.3/src/confetti.js',
     exports: qw`reset create shapeFromPath shapeFromText`,
     // esm:      let module = await import('canvas-confetti');
+    // esm:      export module.exports.reset as reset;
+    // esm:      export module as default;
     // cjs head: let module = {exports: {}};
     // cjs:      module.exports =
     // cjs:      module.exports.reset =
-    // esm:      export module.exports.reset as reset;
     // cjs end:  export module.exports as default;
-    // esm:      export module as default;
   },
   'framer-motion': {type: 'esm',
     url: 'https://unpkg.com/framer-motion@11.11.17/dist/es/index.mjs'},
