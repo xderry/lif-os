@@ -45,7 +45,7 @@ let mod_map = {
   },
   'react/jsx-runtime': {type: 'cjs',
     // https://unpkg.com/jsx-runtime@1.2.0/index.js
-    url_base: 'https://unpkg.com/jsx-runtime@1.2.0/'},
+    url_base: 'https://unpkg.com/jsx-runtime@1.2.0/',
     require: qw`./lib/renderer ./lib/interpreter`,
     // cjs: require('./lib/renderer')
     // esm: await import('./lib/interpreter');
