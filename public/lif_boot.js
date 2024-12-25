@@ -1,6 +1,6 @@
 (async()=>{
   try {
-    const registration = await navigator.serviceWorker.register('/sw.js');
+    const registration = await navigator.serviceWorker.register('/lif_sw.js');
     await navigator.serviceWorker.ready;
     const launch = async()=>{
       await import(window.launch_url || './pages/index.tsx');
