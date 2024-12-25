@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>SW Babel React App</title>
+    <link rel="stylesheet" href="./esmsh_style.css">
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type=importmap>
+      {"imports": {
+        "react": "/.lif/esm/react",
+        "react/": "/.lif/esm/react/",
+        "react-dom": "/.lif/esm/react-dom"
+      }}
+    </script>
+    <script>
+      window.launch_url = "./esm2_main.tsx";
+    </script>
+    <script type="module" src="./index.js"></script>
+  </body>
+</html>
+
