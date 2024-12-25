@@ -7,15 +7,16 @@ var loaded = [];
 // @param  {Array}  	deps          Array of deps. (Optional)
 // @param  {Function} 	module        Function returing the module object.
 var define = function(name, deps, module){
+  console.log('define', name, 'deps', deps);
   if (typeof deps=="function")
-    [module, deps] = [deps, require.extractDependencies(module)];
+    [module, deps] = [deps, require.extractDependencies(deps)];
   if (!deps?.length){
     // Push into loaded for fast iteration
     loaded.push(name);
     // Module has no deps, i.e. immediately loaded
     // console.log("Module loaded: ", name);
     modules[name] = {
-      name: name,
+      name,
       cb: module,
       module: module(),
       loaded: true,
@@ -25,12 +26,13 @@ var define = function(name, deps, module){
     // Has deps, defer loading until deps have loaded
     // console.log("Deferring loading of ", name, "with deps", deps);
     modules[name] = {
-      name: name,
+      name,
       cb: module,
       loaded: false,
-      deps: deps,
+      deps,
     };
   }
+  console.log('define', name, 'deps', deps, 'cb', modules[name].cb);
   unroll();
   // Fire onModule event
   if (require.onModule)
@@ -43,8 +45,9 @@ var define = function(name, deps, module){
 // @param  {Function} cb    Callback with deps as parameters.
 var require = function(deps, cb) {
   if (typeof deps=="function")
-    [cb, deps] = [deps, require.extractDependencies(cb)];
-  var module = {cb: cb, deps: deps};
+    [cb, deps] = [deps, require.extractDependencies(deps)];
+  var module = {cb, deps};
+  console.log('require deps', deps, 'cb', cb);
   // console.log("Require defined with deps", deps);
   // Push it into the modules
   modules.push(module);
