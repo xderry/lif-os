@@ -7,19 +7,89 @@ importScripts('https://unpkg.com/@babel/standalone@7.26.4/babel.js');
 // @see https://developers.google.com/web/fundamentals/primers/service-workers/lifecycle#clientsclaim
 self.addEventListener('activate', event=>event.waitUntil(clients.claim()));
 
+const array = {}; // array.js
+array.compact = a=>a.filter(e=>e);
+const string = {}; // string.js
+string.split_trim = (s, sep, limit)=>array.compact(s.split(sep, limit));
+string.split_ws = s=>string.split_trim(s, /\s+/);
+string.qw = function(s){
+  if (Array.isArray(s) && !s.raw)
+    return s;
+  return string.split_ws(!Array.isArray(s) ? s : string.es6_str(arguments));
+};
+string.es6_str = args=>{
+  var parts = args[0], s = '';
+  if (!Array.isArray(parts))
+    return parts;
+  s += parts[0];
+  for (var i = 1; i<parts.length; i++){
+    s += args[i];
+    s += parts[i];
+  }
+  return s;
+};
+const qw = string.qw;
+
 const is_prefix = (url, prefix)=>{
   if (url.startsWith(prefix))
     return {prefix: prefix, rest: url.substr(prefix.length)};
 };
 // see index.html for coresponding import maps
 let mod_map = {
-  'react': {type: 'umd',
-    url: 'https://unpkg.com/react@18/umd/react.development.js'},
+  'react': {type: 'amd',
+    url: 'https://unpkg.com/react@18/umd/react.development.js',
+    exports: qw`__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED
+      createPortal createRoot findDOMNode flushSync hydrate hydrateRoot render
+      unmountComponentAtNode unstable_batchedUpdates
+      unstable_renderSubtreeIntoContainer version`,
+  },
   'react/jsx-runtime': {type: 'cjs',
     // https://unpkg.com/jsx-runtime@1.2.0/index.js
     url_base: 'https://unpkg.com/jsx-runtime@1.2.0/'},
-  'react-dom': {global: 'ReactDOM',
-    url: 'https://unpkg.com/react-dom@18/umd/react-dom.development.js'},
+    require: qw`./lib/renderer ./lib/interpreter`,
+    // cjs: require('./lib/renderer')
+    // esm: await import('./lib/interpreter');
+    exports: qw`default`,
+    // cjs: module.exports =
+    // esm: export exports as default;
+  },
+  // https://esm.sh/react-dom@18.2.0/client
+  // import "/v135/react-dom@18.2.0/es2022/react-dom.mjs";
+  // export * from "/v135/react-dom@18.2.0/es2022/client.js";
+  // export {default} from "/v135/react-dom@18.2.0/es2022/client.js";
+  'react-dom': {type: 'amd',
+    url: 'https://unpkg.com/react-dom@18/umd/react-dom.development.js',
+    exports: qw`__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED
+      createPortal createRoot findDOMNode flushSync hydrate hydrateRoot render
+      unmountComponentAtNode unstable_batchedUpdates
+      unstable_renderSubtreeIntoContainer version`,
+    // esm: export exports as default;
+    // amd: exports.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED = ...
+    // esm: export exports.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED as __SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED;
+    // amd: exports.createPortal = ...
+    // esm: export exports.createPortal as createPortal;
+  },
+  'react-dom-global': {type: 'global', global: 'ReactDOM',
+    url: 'https://unpkg.com/react-dom@18/umd/react-dom.development.js',
+    exports: qw`__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED
+      createPortal createRoot findDOMNode flushSync hydrate hydrateRoot render
+      unmountComponentAtNode unstable_batchedUpdates
+      unstable_renderSubtreeIntoContainer version`,
+    // out: export ReactDOM as default;
+    // out: export ReactDOM.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED as __SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED;
+    // out: export ReactDOM.createPortal as createPortal;
+  },
+  'canvas-confetti': {type: 'cjs',
+    url: 'https://unpkg.com/canvas-confetti@1.9.3/src/confetti.js',
+    exports: qw`reset create shapeFromPath shapeFromText`,
+    // esm:      let module = await import('canvas-confetti');
+    // cjs head: let module = {exports: {}};
+    // cjs:      module.exports =
+    // cjs:      module.exports.reset =
+    // esm:      export module.exports.reset as reset;
+    // cjs end:  export module.exports as default;
+    // esm:      export module as default;
+  },
   'framer-motion': {type: 'esm',
     url: 'https://unpkg.com/framer-motion@11.11.17/dist/es/index.mjs'},
   'next/': { 
@@ -80,7 +150,7 @@ async function _sw_fetch(event){
   let pkg = pkg_get(pathname);
   if (external)
     return fetch(request);
-  if (v=is_prefix(pathname, '/.lif/esm/')){
+  if (v=is_prefix(pathname, '/.lif/esm/')){ // rename /.lif/global/
     let module = v.rest;
     let mod;
     if (!(mod=mod_get(module)))
@@ -101,8 +171,23 @@ async function _sw_fetch(event){
     console.log(`module ${mod.name} loaded ${pathname} ${mod.url}`);
     return new Response(res, {headers});
   }
-  if (pathname=='/favicon.ico')
-    return await fetch('https://raw.githubusercontent.com/DustinBrett/daedalOS/refs/heads/main/public/favicon.ico');
+  if (v=is_prefix(pathname, '/.lif/amd/')){
+    let module = v.rest;
+    let mod;
+    if (!(mod=mod_get(module)))
+      throw "no module found "+module;
+    let response = await fetch(mod.url);
+    let body = await response.text();
+    let res = body;
+    if (mod.type!='amd')
+      throw "not amd module "+module+" (is "+mod.type+")";
+    let l = [];
+    l.push(`let exports = await import('${mod.url}');`);
+    mod.exports.forEach(e=>l.push(`export exports.${e} as ${e};`));
+    l.push(`export default exports;`);
+    console.log(`amd module ${mod.name} loaded ${pathname} ${mod.url}`);
+    return new Response(res, {headers});
+  }
   if (u.ext=='.css'){
     let response = await fetch(pathname);
     let body = await response.text();
@@ -170,6 +255,8 @@ async function _sw_fetch(event){
     let body = await response.text();
     return new Response(body, {headers});
   }
+  if (pathname=='/favicon.ico')
+    return await fetch('https://raw.githubusercontent.com/DustinBrett/daedalOS/refs/heads/main/public/favicon.ico');
   return fetch(request);
 }
 
