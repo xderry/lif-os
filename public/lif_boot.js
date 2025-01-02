@@ -27,23 +27,27 @@ lif.boot = {
     if (modules[module_id])
       throw Error('defile('+module_id+') already defined');
     console.log('define('+module_id+') loading');
-    let m = modules[module_id] = {module_id, deps, factory, loaded: false,
-      module: {exports: {}}};
     let resolve, promise = new Promise(res=>resolve = res);
+    let m = modules[module_id] = {module_id, deps, factory, loaded: false,
+      promise, module: {exports: {}}};
     lb.require_amd(module_id, deps, function(...deps){
       console.log('define('+module_id+') pre-factory');
       let exports = m.factory.apply(m.module.exports, deps);
       if (exports)
         m.module.exports = exports;
+      m.loaded = true;
       console.log('define('+module_id+') post factory', m.module.exports);
-      m.module.loaded = true;
       resolve(m.module.exports);
     });
     return promise;
   },
   require_amd: function(module_ctx, deps, cb){
+    console.log('require_amd('+module_ctx+')', deps);
     if (!cb)
+      {
+      console.log('require_amd call require_cache()');
       return lb.require_cache(deps);
+      }
     let _deps = [];
     let m = modules[module_ctx] || {module: {exports: {}}};
     return (async()=>{
@@ -58,21 +62,26 @@ lif.boot = {
         case 'module': v = m.module; break;
         default: v = await lb.require_single(dep);
         }
+        console.log('require_amd v('+dep+')', v);
         _deps[i] = v;
       }
+      console.log('require_amd cb('+module_ctx+') pre', cb);
       cb(..._deps);
+      console.log('require_amd cb('+module_ctx+') post');
     })();
   },
-  require_cache: function(module_id){
+  module_get: async function(module_id){
     let m = modules[module_id];
-    console.log('require_cache('+module_id+')', m);
-    if (!m?.loaded)
+    console.log('module_get('+module_id+')', m);
+    if (!m)
       throw Error('module '+module_id+' not loaded');
-    return m.module.exports;
+    if (!m.loaded)
+      await m.promise;
+    return m.module;
   },
-  require_cache_wait: function(module_id){
+  require_cache_wait: async function(module_id){
     let m = modules[module_id];
-    console.log('require_cache('+module_id+')', m);
+    console.log('require_cache_wait('+module_id+')', m);
     if (!m?.loaded)
       throw Error('module '+module_id+' not loaded');
     await m.promise;
@@ -80,17 +89,20 @@ lif.boot = {
   },
   require_single: async function(module_id){
     let m = modules[module_id];
+    console.log('require_single('+module_id+')', m);
     if (m?.loaded)
       return m.module.exports;
     if (m){
       await m.promise;
       return m.module.exports;
     }
-    m = modules[module_id] = {module_id, deps: [],
+    let resolve, promise = new Promise(res=>resolve = res);
+    m = modules[module_id] = {module_id, deps: [], promise,
       loaded: false, module: {exports: {}}};
     m.mod = await import(module_id);
     m.loaded = true;
     m.module.exports = m.mod.default || m.mod;
+    resolve(m.modules.exports);
     return m.module.exports;
   },
 };

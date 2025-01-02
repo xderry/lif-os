@@ -175,9 +175,9 @@ async function _sw_fetch(event){
           console.log('require', deps);
           return lif_boot.require_amd(${mod_json}, deps, cb); };
         `+res;
-      res += `let mod_exports = lif_boot.require_cache(${mod_json});\n`;
-      mod.exports.forEach(e=>res += `export const ${e} = mod_exports.${e};\n`);
-      res += `export default mod_exports;\n`;
+      res += `let mod = await lif_boot.module_get(${mod_json});\n`;
+      mod.exports.forEach(e=>res += `export const ${e} = mod.exports.${e};\n`);
+      res += `export default mod.exports;\n`;
     }
     console.log(`module ${mod.name} loaded ${pathname} ${mod.url}`);
     return new Response(res, {headers});
