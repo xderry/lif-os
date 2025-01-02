@@ -9,6 +9,7 @@ self.addEventListener('activate', event=>event.waitUntil(clients.claim()));
 
 const array = {}; // array.js
 array.compact = a=>a.filter(e=>e);
+array.to_nl = a=>!a?.length ? '' : a.join("\n")+"\n";
 const string = {}; // string.js
 string.split_trim = (s, sep, limit)=>array.compact(s.split(sep, limit));
 string.split_ws = s=>string.split_trim(s, /\s+/);
@@ -65,9 +66,9 @@ let mod_map = {
       unstable_renderSubtreeIntoContainer version`,
     // amd: exports.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED = ...
     // amd: exports.createPortal = ...
-    // esm: export exports as default;
-    // esm: export exports.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED as __SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED;
-    // esm: export exports.createPortal as createPortal;
+    // esm: export default exports;
+    // esm: export __SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED = exports.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED;
+    // esm: export createPortal = exports.createPortal;
   },
   'react-dom-global': {type: 'global', global: 'ReactDOM',
     url: 'https://unpkg.com/react-dom@18/umd/react-dom.development.js',
@@ -75,20 +76,20 @@ let mod_map = {
       createPortal createRoot findDOMNode flushSync hydrate hydrateRoot render
       unmountComponentAtNode unstable_batchedUpdates
       unstable_renderSubtreeIntoContainer version`,
-    // esm: export ReactDOM as default;
-    // esm: export ReactDOM.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED as __SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED;
-    // esm: export ReactDOM.createPortal as createPortal;
+    // esm: export default ReactDOM;
+    // esm: export __SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED = ReactDOM.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED;
+    // esm: export createPortal = ReactDOM.createPortal;
   },
   'canvas-confetti': {type: 'cjs',
     url: 'https://unpkg.com/canvas-confetti@1.9.3/src/confetti.js',
     exports: qw`reset create shapeFromPath shapeFromText`,
     // esm:      let module = await import('canvas-confetti');
-    // esm:      export module.exports.reset as reset;
-    // esm:      export module as default;
+    // esm:      export reset = module.exports.reset;
+    // esm:      export default module;
     // cjs head: let module = {exports: {}};
     // cjs:      module.exports =
     // cjs:      module.exports.reset =
-    // cjs end:  export module.exports as default;
+    // cjs end:  export default = module.exports;
   },
   'framer-motion': {type: 'esm',
     url: 'https://unpkg.com/framer-motion@11.11.17/dist/es/index.mjs'},
@@ -158,15 +159,23 @@ async function _sw_fetch(event){
     let response = await fetch(mod.url);
     let body = await response.text();
     let res = body;
-    if (mod.global){
-      res = `
-        const head = document.getElementsByTagName('head')[0];
-        const script = document.createElement('script');
-        script.setAttribute('type', 'text/javascript');
-        script.appendChild(document.createTextNode(${JSON.stringify(body)}));
-        head.appendChild(script);
+    if (mod.type=='global'){
+      res += `
         export default window.${mod.global};
       `;
+    } else if (mod.type=='amd'){
+      let mod_json = JSON.stringify(module);
+      res = `
+        export hello_world = 42;
+        let lif_boot = window.lif.boot;
+        let define = function(id, deps, factory){
+          return lif_boot.define_amd(${mod_json}, arguments); };
+        let require = function(deps, cb){
+          return lif_boot.require_amd(${mod_json}, deps, cb); };
+        `+res;
+      res += `let exports = require(${mod_json});\n`;
+      mod.exports.forEach(e=>res += `export ${e} = exports.${e};\n`);
+      res += `export default exports;\n`;
     }
     console.log(`module ${mod.name} loaded ${pathname} ${mod.url}`);
     return new Response(res, {headers});
@@ -186,7 +195,7 @@ async function _sw_fetch(event){
     mod.exports.forEach(e=>l.push(`export exports.${e} as ${e};`));
     l.push(`export default exports;`);
     console.log(`amd module ${mod.name} loaded ${pathname} ${mod.url}`);
-    return new Response(res, {headers});
+    return new Response(res+"\n"+array.to_nl(l), {headers});
   }
   if (u.ext=='.css'){
     let response = await fetch(pathname);
