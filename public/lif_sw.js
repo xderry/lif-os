@@ -166,16 +166,18 @@ async function _sw_fetch(event){
     } else if (mod.type=='amd'){
       let mod_json = JSON.stringify(module);
       res = `
-        export hello_world = 42;
         let lif_boot = window.lif.boot;
         let define = function(id, deps, factory){
+          console.log('define', id, deps);
           return lif_boot.define_amd(${mod_json}, arguments); };
+        define.amd = {};
         let require = function(deps, cb){
+          console.log('require', deps);
           return lif_boot.require_amd(${mod_json}, deps, cb); };
         `+res;
-      res += `let exports = require(${mod_json});\n`;
-      mod.exports.forEach(e=>res += `export ${e} = exports.${e};\n`);
-      res += `export default exports;\n`;
+      res += `let mod_exports = lif_boot.require_cache(${mod_json});\n`;
+      mod.exports.forEach(e=>res += `export const ${e} = mod_exports.${e};\n`);
+      res += `export default mod_exports;\n`;
     }
     console.log(`module ${mod.name} loaded ${pathname} ${mod.url}`);
     return new Response(res, {headers});
@@ -191,9 +193,9 @@ async function _sw_fetch(event){
     if (mod.type!='amd')
       throw "not amd module "+module+" (is "+mod.type+")";
     let l = [];
-    l.push(`let exports = await import('${mod.url}');`);
-    mod.exports.forEach(e=>l.push(`export exports.${e} as ${e};`));
-    l.push(`export default exports;`);
+    l.push(`let mod_exports = await import('${mod.url}');`);
+    mod.exports.forEach(e=>l.push(`export const ${e} = mod_exports.${e};`));
+    l.push(`export default mod_exports;`);
     console.log(`amd module ${mod.name} loaded ${pathname} ${mod.url}`);
     return new Response(res+"\n"+array.to_nl(l), {headers});
   }
