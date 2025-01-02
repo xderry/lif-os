@@ -9,9 +9,9 @@ const is_prefix = (url, prefix)=>{
     return {prefix: prefix, rest: url.substr(prefix.length)};
 };
 
-const server = http.createServer((request, response)=>{
+const server = http.createServer((req, res)=>{
   const opt = {directoryListing: false, cleanUrls: false};
-  const url = request.url;
+  const url = req.url;
   let file;
   let v;
   if (v=is_prefix(url, '/.lif/pkgroot/'))
@@ -23,10 +23,12 @@ const server = http.createServer((request, response)=>{
     file = '/public'+url;
   if (file)
     opt.rewrites = [{source: '**', destination: file}];
-  console.log(`req ${url} -> ${file}`);
+  let log_url = url+(file && file!=url ? '->'+file : '');
+  res.on('finish', ()=>console.log(
+    `${log_url} ${res.statusCode} ${res.statusMessage}`));
   // You pass two more arguments for config and middleware
   // More details here: https://github.com/vercel/serve-handler#options
-  return serve(request, response, opt);
+  return serve(req, res, opt);
 });
 
 let port = 3000;
