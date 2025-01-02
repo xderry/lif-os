@@ -64,10 +64,7 @@ let mod_map = {
       createPortal createRoot findDOMNode flushSync hydrate hydrateRoot render
       unmountComponentAtNode unstable_batchedUpdates
       unstable_renderSubtreeIntoContainer version`,
-    // amd: exports.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED = ...
     // amd: exports.createPortal = ...
-    // esm: export default exports;
-    // esm: export __SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED = exports.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED;
     // esm: export createPortal = exports.createPortal;
   },
   'react-dom-global': {type: 'global', global: 'ReactDOM',
@@ -76,20 +73,14 @@ let mod_map = {
       createPortal createRoot findDOMNode flushSync hydrate hydrateRoot render
       unmountComponentAtNode unstable_batchedUpdates
       unstable_renderSubtreeIntoContainer version`,
-    // esm: export default ReactDOM;
-    // esm: export __SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED = ReactDOM.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED;
-    // esm: export createPortal = ReactDOM.createPortal;
+    // amd: exports.createPortal = ...
+    // esm: export const createPortal = exports.createPortal;
   },
   'canvas-confetti': {type: 'cjs',
     url: 'https://unpkg.com/canvas-confetti@1.9.3/src/confetti.js',
     exports: qw`reset create shapeFromPath shapeFromText`,
-    // esm:      let module = await import('canvas-confetti');
-    // esm:      export reset = module.exports.reset;
-    // esm:      export default module;
-    // cjs head: let module = {exports: {}};
-    // cjs:      module.exports =
     // cjs:      module.exports.reset =
-    // cjs end:  export default = module.exports;
+    // esm:      export const reset = module.exports.reset;
   },
   'framer-motion': {type: 'esm',
     url: 'https://unpkg.com/framer-motion@11.11.17/dist/es/index.mjs'},
