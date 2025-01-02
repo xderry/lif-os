@@ -171,23 +171,6 @@ async function _sw_fetch(event){
     console.log(`module ${mod.name} loaded ${pathname} ${mod.url}`);
     return new Response(res, {headers});
   }
-  if (v=is_prefix(pathname, '/.lif/amd/')){
-    let module = v.rest;
-    let mod;
-    if (!(mod=mod_get(module)))
-      throw "no module found "+module;
-    let response = await fetch(mod.url);
-    let body = await response.text();
-    let res = body;
-    if (mod.type!='amd')
-      throw "not amd module "+module+" (is "+mod.type+")";
-    let l = [];
-    l.push(`let mod_exports = await import('${mod.url}');`);
-    mod.exports.forEach(e=>l.push(`export const ${e} = mod_exports.${e};`));
-    l.push(`export default mod_exports;`);
-    console.log(`amd module ${mod.name} loaded ${pathname} ${mod.url}`);
-    return new Response(res+"\n"+array.to_nl(l), {headers});
-  }
   if (u.ext=='.css'){
     let response = await fetch(pathname);
     let body = await response.text();
@@ -205,6 +188,7 @@ async function _sw_fetch(event){
   }
   if (['.jsx', '.tsx', '.ts'].includes(u.ext) || pkg?.ext && !u.ext){
     let response, _pathname;
+    console.log('babel '+u.ext, url);
     if (u.ext)
       response = await fetch(pathname);
     else { // .ts .tsx module
@@ -224,8 +208,11 @@ async function _sw_fetch(event){
       console.log(res_status);
       u = url_parse(url+ext);
     }
-    if (response?.status!=200)
+    if (response?.status!=200){
+      console.log('failed module '+pathname+' '+response.status);
       return response;
+    }
+    console.log('loaded module src '+pathname);
     let body = await response.text();
     console.log(response);
     let opt = {
