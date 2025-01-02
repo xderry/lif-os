@@ -168,11 +168,9 @@ async function _sw_fetch(event){
       res = `
         let lif_boot = window.lif.boot;
         let define = function(id, deps, factory){
-          console.log('define', id, deps);
           return lif_boot.define_amd(${mod_json}, arguments); };
         define.amd = {};
         let require = function(deps, cb){
-          console.log('require', deps);
           return lif_boot.require_amd(${mod_json}, deps, cb); };
         `+res;
       res += `let mod = await lif_boot.module_get(${mod_json});\n`;
