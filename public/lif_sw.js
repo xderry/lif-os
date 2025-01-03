@@ -84,10 +84,8 @@ let mod_map = {
   },
   'framer-motion': {type: 'esm',
     url: 'https://unpkg.com/framer-motion@11.11.17/dist/es/index.mjs'},
-  'next/': { 
-    // https://unpkg.com/next@15.0.4/dist/esm/shared/lib/dynamic.js
-    type: 'esm', ext: '.js',
-    url_base: 'https://unpkg.com/next@15.0.4/dist/esm/shared/lib/'},
+//  'render/': {type: 'esm',
+//    url: 'https://unpkg.com/framer-motion@11.11.17/dist/es/render/'},
 };
 const mod_get = pathname=>{
   let mod, v;
@@ -100,6 +98,7 @@ const mod_get = pathname=>{
   }
 };
 let ext_react = ['.ts', '.tsx', '/index.ts', '/index.tsx'];
+let ext_esm = ['/index.mjs'];
 let pkg_map = {
   '/pages/': {path: '/.lif/pkgroot/pages/'},
   '/components/': {path: '/.lif/pkgroot/components/', ext: ext_react},
@@ -128,6 +127,17 @@ const url_parse = url=>{
   return u;
 };
 
+async function fetch_try(urls){
+  let response, url;
+  for (url of urls){
+    response = await fetch(url);
+    if (response.status==200)
+      break;
+  }
+  if (response?.status!=200)
+    console.log('failed module '+urls);
+  return {response, url};
+}
 async function _sw_fetch(event){
   let {request, request: {url}} = event;
   const _url = url; // orig
@@ -138,7 +148,7 @@ async function _sw_fetch(event){
   if (request.method!='GET')
     return fetch(request);
   let v;
-  console.log('Req', _url, url, u.ext, u.pathname);
+  console.log('Req '+_url+(_url!=url ? '->'+url : ''));
   let pkg = pkg_get(pathname);
   if (external)
     return fetch(request);
@@ -187,39 +197,22 @@ async function _sw_fetch(event){
     );
   }
   if (['.jsx', '.tsx', '.ts'].includes(u.ext) || pkg?.ext && !u.ext){
-    let response, _pathname;
-    console.log('babel '+u.ext, url);
+    let response, res_status;
+    // console.log('babel '+u.ext, url);
+    let urls = [], __url;
     if (u.ext)
-      response = await fetch(pathname);
-    else { // .ts .tsx module
-      let ext, is_not = [], res_status;
-      for (ext of pkg.ext){
-        _pathname = pathname+ext;
-        response = await fetch(pathname+ext);
-        res_status = pathname+ext+' '+response.status;
-        if (response.status==200)
-          break;
-        is_not.push(res_status);
-      }
-      if (response.status!=200){
-        console.log('failed module '+pathname+'. is not:', is_not);
-        return response;
-      }
-      console.log(res_status);
-      u = url_parse(url+ext);
-    }
-    if (response?.status!=200){
-      console.log('failed module '+pathname+' '+response.status);
+      urls.push(url);
+    else
+      pkg.ext.forEach(ext=>urls.push(url+ext));
+    ({response, url: __url} = await fetch_try(urls));
+    if (response?.status!=200)
       return response;
-    }
-    console.log('loaded module src '+pathname);
+    // console.log(res_status);
+    u = url_parse(__url);
+    console.log('babel loaded module src '+__url);
     let body = await response.text();
-    console.log(response);
-    let opt = {
-      presets: [],
-      plugins: [],
-      sourceMaps: true,
-    };
+    // console.log(response);
+    let opt = {presets: [], plugins: [], sourceMaps: true};
     if (u.ext=='.tsx' || u.ext=='.ts'){
       opt.presets.push('typescript');
       opt.filename = u.filename;
@@ -234,7 +227,7 @@ async function _sw_fetch(event){
       throw err;
     }
     // babel --presets typescript,react app.tsx
-    console.log('babel: '+pathname);
+    // console.log('babel: '+pathname);
     return new Response(res.code, {headers});
   }
   if (u.ext=='.js'){
