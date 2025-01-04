@@ -153,9 +153,11 @@ async function fetch_try(urls){
       break;
   }
   if (response?.status!=200)
-    console.log('failed module '+urls);
+    console.error('failed module '+urls);
   return {response, url};
 }
+//let log = console.log.bind(console);
+let log = ()=>0;
 async function _sw_fetch(event){
   let {request, request: {url}} = event;
   const _url = url; // orig
@@ -166,7 +168,7 @@ async function _sw_fetch(event){
   if (request.method!='GET')
     return fetch(request);
   let v;
-  console.log('Req '+_url+(_url!=url ? '->'+url : ''));
+  log('Req '+_url+(_url!=url ? '->'+url : ''));
   let pkg = pkg_get(path);
   if (external)
     return fetch(request);
@@ -196,7 +198,7 @@ async function _sw_fetch(event){
       mod.m.exports.forEach(e=>res += `export const ${e} = mod.exports.${e};\n`);
       res += `export default mod.exports;\n`;
     }
-    console.log(`module ${mod.name} loaded ${path} ${mod.url}`);
+    log(`module ${mod.name} loaded ${path} ${mod.url}`);
     return new Response(res, {headers});
   }
   if (u.ext=='.css'){
@@ -216,7 +218,7 @@ async function _sw_fetch(event){
   }
   if (['.jsx', '.tsx', '.ts'].includes(u.ext) || pkg?.ext && !u.ext){
     let response, res_status;
-    console.log('babel '+u.ext, url);
+    log('babel '+u.ext, url);
     let urls = [], __url;
     if (u.ext)
       urls.push(url);
@@ -225,9 +227,8 @@ async function _sw_fetch(event){
     ({response, url: __url} = await fetch_try(urls));
     if (response?.status!=200)
       return response;
-    // console.log(res_status);
     u = url_parse(__url);
-    console.log('babel loaded module src '+__url);
+    log('babel loaded module src '+__url);
     let body = await response.text();
     // console.log(response);
     let opt = {presets: [], plugins: [], sourceMaps: true};
@@ -241,7 +242,7 @@ async function _sw_fetch(event){
     try {
       res = await Babel.transform(body, opt);
     } catch (err){
-      console.log('babel FAILED: '+path, err);
+      console.error('babel FAILED: '+path, err);
       throw err;
     }
     // babel --presets typescript,react app.tsx
@@ -262,7 +263,7 @@ async function sw_fetch(event){
   try {
     return await _sw_fetch(event);
   } catch (err){
-    console.log('ServiceWorker sw_fetch err', err);
+    console.error('ServiceWorker sw_fetch err', err);
     return new Response(''+err, {status: 500, statusText: ''+err});
   }
 }
@@ -271,6 +272,6 @@ self.addEventListener('fetch', event=>{
   try {
     event.respondWith(sw_fetch(event));
   } catch (err){
-    console.log("ServiceWorker NetworkError: "+err);
+    console.error("ServiceWorker NetworkError: "+err);
   }
 });

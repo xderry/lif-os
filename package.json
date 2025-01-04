@@ -42,14 +42,15 @@
     "react-rnd/re-resizable": "6.10.1"
   },
   "dependencies": {
+    "@babel/standalone": "^7.26.2",
     "@mlc-ai/web-llm": "^0.2.76",
     "@monaco-editor/loader": "^1.4.0",
     "@panzoom/panzoom": "^4.5.1",
     "@prettier/plugin-xml": "^3.4.1",
     "@wasmer/wasm-transformer": "^0.12.0",
-    "@babel/standalone": "^7.26.2",
     "ani-cursor": "^0.0.5",
     "browserfs": "https://github.com/jvilk/BrowserFS.git#a96aa2d",
+    "browserify": "^17.0.1",
     "butterchurn-presets": "^3.0.0-beta.4",
     "canvas-confetti": "^1.9.3",
     "decode-ico": "^0.4.1",
@@ -85,7 +86,6 @@
     "wasi-js": "^1.7.3"
   },
   "devDependencies": {
-    "7z-wasm": "^1.1.0",
     "@axe-core/playwright": "^4.10.1",
     "@next/bundle-analyzer": "^15.0.3",
     "@next/eslint-plugin-next": "^15.0.3",
@@ -107,6 +107,7 @@
     "@types/wicg-file-system-access": "^2023.10.5",
     "@typescript-eslint/eslint-plugin": "^8.16.0",
     "@typescript-eslint/parser": "^8.16.0",
+    "7z-wasm": "^1.1.0",
     "emulators": "^8.3.3",
     "emulators-ui": "^0.73.9",
     "eruda": "^3.4.1",
