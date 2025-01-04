@@ -31,10 +31,14 @@ string.es6_str = args=>{
 };
 const qw = string.qw;
 
-const is_prefix = (url, prefix)=>{
+const str_prefix = (url, prefix)=>{
   if (url.startsWith(prefix))
     return {prefix: prefix, rest: url.substr(prefix.length)};
 };
+const path_ext = path=>path.match(/\.[^./]*$/)?.[0];
+const path_file = path=>path.match(/(^|\/)?([^/]+)$/)?.[2];
+const path_dir = path=>path.slice(0, path_file(path).length);
+const path_is_dir = path=>path.endsWith('/');
 // see index.html for coresponding import maps
 let mod_map = {
   'react': {type: 'amd',
@@ -46,7 +50,7 @@ let mod_map = {
   },
   'react/jsx-runtime': {type: 'cjs',
     // https://unpkg.com/jsx-runtime@1.2.0/index.js
-    url_base: 'https://unpkg.com/jsx-runtime@1.2.0/',
+    url: 'https://unpkg.com/jsx-runtime@1.2.0/',
     require: qw`./lib/renderer ./lib/interpreter`,
     // cjs: require('./lib/renderer')
     // esm: await import('./lib/interpreter');
@@ -82,20 +86,36 @@ let mod_map = {
     // cjs:      module.exports.reset =
     // esm:      export const reset = module.exports.reset;
   },
-  'framer-motion': {type: 'esm',
+  'framer-motion/': {type: 'esm',
     url: 'https://unpkg.com/framer-motion@11.11.17/dist/es/index.mjs'},
 //  'render/': {type: 'esm',
 //    url: 'https://unpkg.com/framer-motion@11.11.17/dist/es/render/'},
 };
-const mod_get = pathname=>{
-  let mod, v;
-  if (mod=mod_map[pathname])
-    return {...mod, name: pathname};
-  for (let i in mod_map){
-    mod = mod_map[i];
-    if (i[i.length-1]=='/' && (v=is_prefix(pathname, i)))
-      return {...mod, name: i, rest: v.rest, url: mod.url_base+v.rest};
+{
+  for (const [name, m] of Object.entries(mod_map)){
+    m.is_dir = path_is_dir(name);
+    m.u = url_parse(m.url);
   }
+}
+
+const mod_get = path=>{
+  let mod = {}, m, v, prefix;
+  for (let name in mod_map){
+    m = mod_map[name];
+    if (name==path){
+      mod = {m, name, rest: ''};
+      break;
+    }
+    if (m.is_dir && (v=str_prefix(path, name))){
+      mod = {m, name, rest: v.rest};
+      break;
+    }
+  }
+  if (!mod)
+    return;
+  mod.url = mod.is_dir ? m.u.dir+mod.rest : m.url;
+  mod.u = url_parse(mod.url);
+  return mod;
 };
 let ext_react = ['.ts', '.tsx', '/index.ts', '/index.tsx'];
 let ext_esm = ['/index.mjs'];
@@ -105,12 +125,12 @@ let pkg_map = {
   '/hooks/': {path: '/.lif/pkgroot/hooks/', ext: ext_react},
   '/contexts/': {path: '/.lif/pkgroot/contexts/', ext: ext_react},
 };
-const pkg_get = pathname=>{
+const pkg_get = path=>{
   let v;
-  if (v=is_prefix(pathname, '/.lif/pkgroot/')){
-    let pkgname = '/'+v.rest;
+  if (v=str_prefix(path, '/.lif/pkgroot/')){
+    let name = '/'+v.rest;
     for (let i in pkg_map){
-      if (v=is_prefix(pkgname, i))
+      if (v=str_prefix(name, i))
         return pkg_map[i];
     }
   }
@@ -118,12 +138,11 @@ const pkg_get = pathname=>{
 const headers = new Headers({
   'Content-Type': 'application/javascript',
 });
-const url_ext = url=>url.pathname.match(/\.[^./]*$/)?.[0];
-const url_file = url=>url.pathname.match(/(^|\/)?([^/]+)$/)?.[2];
 const url_parse = url=>{
   const u = URL.parse(url);
-  u.ext = url_ext(u);
-  u.filename = url_file(u);
+  u.ext = path_ext(u.pathname);
+  u.filename = path_file(u.pathname);
+  u.dirname = path_file(u.pathname);
   return u;
 };
 
@@ -144,28 +163,28 @@ async function _sw_fetch(event){
   let u = url_parse(url);
   let ref = request.headers.get('referrer');
   let external = u.origin!=self.location.origin;
-  let pathname = u.pathname;
+  let path = u.pathname;
   // console.log('before req', url);
   if (request.method!='GET')
     return fetch(request);
   let v;
   console.log('Req '+_url+(_url!=url ? '->'+url : ''));
-  let pkg = pkg_get(pathname);
+  let pkg = pkg_get(path);
   if (external)
     return fetch(request);
-  if (v=is_prefix(pathname, '/.lif/esm/')){ // rename /.lif/global/
+  if (v=str_prefix(path, '/.lif/esm/')){ // rename /.lif/global/
     let module = v.rest;
     let mod;
     if (!(mod=mod_get(module)))
-      throw "no module found "+module;
+      throw Error('no module found: '+module);
     let response = await fetch(mod.url);
     let body = await response.text();
     let res = body;
-    if (mod.type=='global'){
+    if (mod.m.type=='global'){
       res += `
         export default window.${mod.global};
       `;
-    } else if (mod.type=='amd'){
+    } else if (mod.m.type=='amd'){
       let mod_json = JSON.stringify(module);
       res = `
         let lif_boot = window.lif.boot;
@@ -176,14 +195,14 @@ async function _sw_fetch(event){
           return lif_boot.require_amd(${mod_json}, deps, cb); };
         `+res;
       res += `let mod = await lif_boot.module_get(${mod_json});\n`;
-      mod.exports.forEach(e=>res += `export const ${e} = mod.exports.${e};\n`);
+      mod.m.exports.forEach(e=>res += `export const ${e} = mod.exports.${e};\n`);
       res += `export default mod.exports;\n`;
     }
-    console.log(`module ${mod.name} loaded ${pathname} ${mod.url}`);
+    console.log(`module ${mod.name} loaded ${path} ${mod.url}`);
     return new Response(res, {headers});
   }
   if (u.ext=='.css'){
-    let response = await fetch(pathname);
+    let response = await fetch(path);
     let body = await response.text();
     return new Response(`
         //TODO We don't track instances, so 2x imports will result in 2x style tags
@@ -224,29 +243,29 @@ async function _sw_fetch(event){
     try {
       res = await Babel.transform(body, opt);
     } catch (err){
-      console.log('babel FAILED: '+pathname, err);
+      console.log('babel FAILED: '+path, err);
       throw err;
     }
     // babel --presets typescript,react app.tsx
-    // console.log('babel: '+pathname);
+    // console.log('babel: '+path);
     return new Response(res.code, {headers});
   }
   if (u.ext=='.js'){
-    let response = await fetch(pathname);
+    let response = await fetch(path);
     let body = await response.text();
     return new Response(body, {headers});
   }
-  if (pathname=='/favicon.ico')
+  if (path=='/favicon.ico')
     return await fetch('https://raw.githubusercontent.com/DustinBrett/daedalOS/refs/heads/main/public/favicon.ico');
   return await fetch(request);
 }
 
 async function sw_fetch(event){
   try {
-    return _sw_fetch(event);
+    return await _sw_fetch(event);
   } catch (err){
-    console.log("ServiceWorker sw_fetch: "+err);
-    return new Response('sw_fetch error: '+err, {status: 500});
+    console.log('ServiceWorker sw_fetch err', err);
+    return new Response(''+err, {status: 500, statusText: ''+err});
   }
 }
 

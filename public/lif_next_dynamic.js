@@ -1,1 +1,1 @@
-export function dynamic(import_fn){ return import_fn(); };
+export function dynamic(import_fn){ return import_fn(); }
