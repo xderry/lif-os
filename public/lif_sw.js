@@ -36,14 +36,16 @@ const str_prefix = (url, prefix)=>{
     return {prefix: prefix, rest: url.substr(prefix.length)};
 };
 const path_ext = path=>path.match(/\.[^./]*$/)?.[0];
-const path_file = path=>path.match(/(^|\/)?([^/]+)$/)?.[2];
-const path_dir = path=>path.slice(0, path_file(path).length);
+const path_file = path=>path.match(/(^|\/)?([^/]*)$/)?.[2];
+const path_dir = path=>path.slice(0, path.length-path_file(path).length);
 const path_is_dir = path=>path.endsWith('/');
 const url_parse = url=>{
   const u = URL.parse(url);
+  if (!u)
+    throw Error('cannot parse url: '+url);
   u.ext = path_ext(u.pathname);
-  u.filename = path_file(u.pathname);
-  u.dirname = path_file(u.pathname);
+  u.file = path_file(u.pathname);
+  u.dir = path_dir(u.pathname);
   return u;
 };
 
@@ -56,9 +58,9 @@ let mod_map = {
       unmountComponentAtNode unstable_batchedUpdates
       unstable_renderSubtreeIntoContainer version`,
   },
-  'react/jsx-runtime': {type: 'cjs',
+  'react/jsx-runtime/': {type: 'cjs',
     // https://unpkg.com/jsx-runtime@1.2.0/index.js
-    url: 'https://unpkg.com/jsx-runtime@1.2.0/',
+    url: 'https://unpkg.com/jsx-runtime@1.2.0/index.js',
     require: qw`./lib/renderer ./lib/interpreter`,
     // cjs: require('./lib/renderer')
     // esm: await import('./lib/interpreter');
@@ -85,8 +87,6 @@ let mod_map = {
       createPortal createRoot findDOMNode flushSync hydrate hydrateRoot render
       unmountComponentAtNode unstable_batchedUpdates
       unstable_renderSubtreeIntoContainer version`,
-    // amd: exports.createPortal = ...
-    // esm: export const createPortal = exports.createPortal;
   },
   'canvas-confetti': {type: 'cjs',
     url: 'https://unpkg.com/canvas-confetti@1.9.3/src/confetti.js',
@@ -96,8 +96,6 @@ let mod_map = {
   },
   'framer-motion/': {type: 'esm',
     url: 'https://unpkg.com/framer-motion@11.11.17/dist/es/index.mjs'},
-//  'render/': {type: 'esm',
-//    url: 'https://unpkg.com/framer-motion@11.11.17/dist/es/render/'},
 };
 {
   for (const [name, m] of Object.entries(mod_map)){
@@ -107,7 +105,7 @@ let mod_map = {
 }
 
 const mod_get = path=>{
-  let mod = {}, m, v, prefix;
+  let mod, m, v, prefix;
   for (let name in mod_map){
     m = mod_map[name];
     if (name==path){
@@ -121,7 +119,7 @@ const mod_get = path=>{
   }
   if (!mod)
     return;
-  mod.url = mod.is_dir ? m.u.dir+mod.rest : m.url;
+  mod.url = m.is_dir && mod.rest ? m.u.origin+m.u.dir+mod.rest : m.url;
   mod.u = url_parse(mod.url);
   return mod;
 };
@@ -132,6 +130,7 @@ let pkg_map = {
   '/components/': {path: '/.lif/pkgroot/components/', ext: ext_react},
   '/hooks/': {path: '/.lif/pkgroot/hooks/', ext: ext_react},
   '/contexts/': {path: '/.lif/pkgroot/contexts/', ext: ext_react},
+  '/utils/': {path: '/.lif/pkgroot/utils/', ext: ext_react},
 };
 const pkg_get = path=>{
   let v;
@@ -164,7 +163,6 @@ async function _sw_fetch(event){
   let ref = request.headers.get('referrer');
   let external = u.origin!=self.location.origin;
   let path = u.pathname;
-  // console.log('before req', url);
   if (request.method!='GET')
     return fetch(request);
   let v;
@@ -218,7 +216,7 @@ async function _sw_fetch(event){
   }
   if (['.jsx', '.tsx', '.ts'].includes(u.ext) || pkg?.ext && !u.ext){
     let response, res_status;
-    // console.log('babel '+u.ext, url);
+    console.log('babel '+u.ext, url);
     let urls = [], __url;
     if (u.ext)
       urls.push(url);
@@ -235,7 +233,7 @@ async function _sw_fetch(event){
     let opt = {presets: [], plugins: [], sourceMaps: true};
     if (u.ext=='.tsx' || u.ext=='.ts'){
       opt.presets.push('typescript');
-      opt.filename = u.filename;
+      opt.filename = u.file;
     }
     if (u.ext=='.tsx' || u.ext=='.jsx')
       opt.presets.push('react');
