@@ -142,6 +142,7 @@ async function _sw_fetch(event){
   let {request, request: {url}} = event;
   const _url = url; // orig
   let u = url_parse(url);
+  let ref = request.headers.get('referrer');
   let external = u.origin!=self.location.origin;
   let pathname = u.pathname;
   // console.log('before req', url);
@@ -237,7 +238,7 @@ async function _sw_fetch(event){
   }
   if (pathname=='/favicon.ico')
     return await fetch('https://raw.githubusercontent.com/DustinBrett/daedalOS/refs/heads/main/public/favicon.ico');
-  return fetch(request);
+  return await fetch(request);
 }
 
 async function sw_fetch(event){
@@ -245,7 +246,7 @@ async function sw_fetch(event){
     return _sw_fetch(event);
   } catch (err){
     console.log("ServiceWorker sw_fetch: "+err);
-    return new Response('sw_fetch error: '+err, {status: 404});
+    return new Response('sw_fetch error: '+err, {status: 500});
   }
 }
 
