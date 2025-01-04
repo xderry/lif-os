@@ -96,12 +96,69 @@ let mod_map = {
   },
   'framer-motion/': {type: 'esm',
     url: 'https://unpkg.com/framer-motion@11.11.17/dist/es/index.mjs'},
+  // browserify dummy nodes:
+  'object.assign': {body:
+    `export default function(){ return Object.assign; }`},
+  // node.js core modules - npm browserify
+  'assert': {node: 'assert/assert.js', require: 'util'},
+  'buffer': {node: 'buffer/index.js', require: 'base64-js ieee754'},
+  'child_process': {node: 'empty'},
+  'cluster':{node: 'empty'},
+  'console': {node: 'console-browserify/index.js', require: 'util assert'},
+  'constants': {node: 'constants-browserify/constants.json'},
+  'crypto': {node: 'crypto-browserify/index.js',
+    require: qw`randombytes create-hash create-hmac browserify-sign/algos
+      pbkdf2 browserify-cipher diffie-hellman browserify-sign create-ecdh
+      public-encrypt randomfill`},
+  'dgram': {node: 'empty'},
+  'dns': {node: 'empty'},
+  'domain': {node: 'domain-browser/source/index.js', require: qw`events`},
+  'events': {node: 'events/events.js'},
+  'fs': {node: 'empty'},
+  'http': {node: 'stream-http/index.js',
+    require: qw`./lib/request ./lib/response xtend builtin-status-codes url`},
+  'https': {node: 'https-browserify/index.js', require: qw`http url`},
+  'http2': {node: 'empty'},
+  'inspector': {node: 'empty'},
+  'module': {node: 'empty'},
+  'net': {node: 'empty'},
+  'os': {node: 'os-browserify/browser.js'},
+  'path': {node: 'path-browserify/index.js'},
+  'perf_hooks': {node: 'empty'},
+  'punycode': {node: 'punycode/punycodes.js'},
+  'querystring': {node: 'querystring-es3/index.js',
+    require: qw`decode encode`},
+  'readline': {node: 'empty'},
+  'repl': {node: 'empty'},
+  'stream': {node: 'stream-browserify/index.js'},
+  '_stream_duplex': {node: 'readable-stream/duplex.js'},
+  '_stream_passthrough': {node: 'readable-stream/passthrough.js'},
+  '_stream_readable': {node: 'readable-stream/readable.js'},
+  '_stream_transform': {node: 'readable-stream/transform.js'},
+  '_stream_writable': {node: 'readable-stream/writable.js'},
+  'string_decoder': {node: 'string_decoder/lib/string_decoder.js'},
+  'sys': {node: 'util/util.js'},
+  'timers': {node: 'timers-browserify/main.js'},
+  'tls': {node: 'empty'},
+  'tty': {node: 'tty-browserify/index.js'},
+  'url': {node: 'url/url.js'},
+  'util': {node: 'util/util.js'},
+  'vm': {node: 'vm-browserify/index.js'},
+  'zlib': {node: 'browserify-zlib/lib/index.js'},
+  '_process': {node: 'process/browser.js'},
 };
-{
-  for (const [name, m] of Object.entries(mod_map)){
-    m.is_dir = path_is_dir(name);
-    m.u = url_parse(m.url);
+for (const [name, m] of Object.entries(mod_map)){
+  m.is_dir = path_is_dir(name);
+  if (m.node){
+    if (m.node=='empty')
+      m.url = '/lif_mod_empty.js';
+    else if (m.node=='error')
+      m.url = '/lif_mod_error.js';
+    else
+      m.url = '/.lif/pkgroot/node_modules'+m.node;
   }
+  m.type = 'cjs';
+  m.u = url_parse(m.url);
 }
 
 const mod_get = path=>{
