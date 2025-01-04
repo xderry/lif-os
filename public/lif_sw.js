@@ -39,6 +39,14 @@ const path_ext = path=>path.match(/\.[^./]*$/)?.[0];
 const path_file = path=>path.match(/(^|\/)?([^/]+)$/)?.[2];
 const path_dir = path=>path.slice(0, path_file(path).length);
 const path_is_dir = path=>path.endsWith('/');
+const url_parse = url=>{
+  const u = URL.parse(url);
+  u.ext = path_ext(u.pathname);
+  u.filename = path_file(u.pathname);
+  u.dirname = path_file(u.pathname);
+  return u;
+};
+
 // see index.html for coresponding import maps
 let mod_map = {
   'react': {type: 'amd',
@@ -138,14 +146,6 @@ const pkg_get = path=>{
 const headers = new Headers({
   'Content-Type': 'application/javascript',
 });
-const url_parse = url=>{
-  const u = URL.parse(url);
-  u.ext = path_ext(u.pathname);
-  u.filename = path_file(u.pathname);
-  u.dirname = path_file(u.pathname);
-  return u;
-};
-
 async function fetch_try(urls){
   let response, url;
   for (url of urls){
