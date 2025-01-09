@@ -66,8 +66,7 @@ let mod_map = {
       unstable_renderSubtreeIntoContainer version`,
   },
   'react/jsx-runtime/': {type: 'cjs',
-    url: 'https://unpkg.com/jsx-runtime@1.2.0/index.js',
-  },
+    url: 'https://unpkg.com/jsx-runtime@1.2.0/index.js'},
   // https://esm.sh/react-dom@18.2.0/client
   // import "/v135/react-dom@18.2.0/es2022/react-dom.mjs";
   // export * from "/v135/react-dom@18.2.0/es2022/client.js";
@@ -96,6 +95,9 @@ let mod_map = {
   },
   'framer-motion/': {type: 'esm',
     url: 'https://unpkg.com/framer-motion@11.11.17/dist/es/index.mjs'},
+  'styled-components': {type: 'esm',
+    url: 'https://unpkg.com/styled-components@4.3.2/dist/styled-components.esm.js'},
+
   // browserify dummy nodes:
   'object.assign': {body:
     `export default function(){ return Object.assign; }`},
