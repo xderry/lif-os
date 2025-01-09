@@ -68,19 +68,11 @@ lif.boot = {
       await m.promise;
     return m.module;
   },
-  require_cache_wait: async function(module_id){
-    let m = modules[module_id];
-    if (!m?.loaded)
-      throw Error('module '+module_id+' not loaded');
-    await m.promise;
-    return m.module.exports;
-  },
   require_single: async function(module_id){
     let m = modules[module_id];
-    if (m?.loaded)
-      return m.module.exports;
     if (m){
-      await m.promise;
+      if (!m.loaded)
+        await m.promise;
       return m.module.exports;
     }
     let resolve, promise = new Promise(res=>resolve = res);

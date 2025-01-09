@@ -39,15 +39,22 @@ const path_ext = path=>path.match(/\.[^./]*$/)?.[0];
 const path_file = path=>path.match(/(^|\/)?([^/]*)$/)?.[2];
 const path_dir = path=>path.slice(0, path.length-path_file(path).length);
 const path_is_dir = path=>path.endsWith('/');
-const url_parse = url=>{
-  const u = URL.parse(url);
+const url_parse = (url, base)=>{
+  const u = URL.parse(url, base);
   if (!u)
     throw Error('cannot parse url: '+url);
-  u.ext = path_ext(u.pathname);
-  u.file = path_file(u.pathname);
-  u.dir = path_dir(u.pathname);
+  u.path = u.pathname;
+  u.ext = path_ext(u.path);
+  u.file = path_file(u.path);
+  u.dir = path_dir(u.path);
   return u;
 };
+const uri_parse = uri=>{
+  let u = {...url_parse(uri, 'http://x')};
+  u.host = u.hostname = u.origin = u.href = u.protocol = '';
+  return u;
+};
+
 
 // see index.html for coresponding import maps
 let mod_map = {
@@ -61,9 +68,8 @@ let mod_map = {
   'react/jsx-runtime/': {type: 'cjs',
     // https://unpkg.com/jsx-runtime@1.2.0/index.js
     url: 'https://unpkg.com/jsx-runtime@1.2.0/index.js',
-    require: qw`./lib/renderer ./lib/interpreter`,
+    test: {require: qw`./lib/renderer ./lib/interpreter`},
     // cjs: require('./lib/renderer')
-    // esm: await import('./lib/interpreter');
     exports: qw`default`,
     // cjs: module.exports =
     // esm: export exports as default;
@@ -100,24 +106,20 @@ let mod_map = {
   'object.assign': {body:
     `export default function(){ return Object.assign; }`},
   // node.js core modules - npm browserify
-  'assert': {node: 'assert/assert.js', require: 'util'},
-  'buffer': {node: 'buffer/index.js', require: 'base64-js ieee754'},
+  'assert': {node: 'assert/assert.js'},
+  'buffer': {node: 'buffer/index.js'},
   'child_process': {node: 'empty'},
   'cluster':{node: 'empty'},
-  'console': {node: 'console-browserify/index.js', require: 'util assert'},
+  'console': {node: 'console-browserify/index.js'},
   'constants': {node: 'constants-browserify/constants.json'},
-  'crypto': {node: 'crypto-browserify/index.js',
-    require: qw`randombytes create-hash create-hmac browserify-sign/algos
-      pbkdf2 browserify-cipher diffie-hellman browserify-sign create-ecdh
-      public-encrypt randomfill`},
+  'crypto': {node: 'crypto-browserify/index.js'},
   'dgram': {node: 'empty'},
   'dns': {node: 'empty'},
-  'domain': {node: 'domain-browser/source/index.js', require: qw`events`},
+  'domain': {node: 'domain-browser/source/index.js'},
   'events': {node: 'events/events.js'},
   'fs': {node: 'empty'},
-  'http': {node: 'stream-http/index.js',
-    require: qw`./lib/request ./lib/response xtend builtin-status-codes url`},
-  'https': {node: 'https-browserify/index.js', require: qw`http url`},
+  'http': {node: 'stream-http/index.js'},
+  'https': {node: 'https-browserify/index.js'},
   'http2': {node: 'empty'},
   'inspector': {node: 'empty'},
   'module': {node: 'empty'},
@@ -125,9 +127,8 @@ let mod_map = {
   'os': {node: 'os-browserify/browser.js'},
   'path': {node: 'path-browserify/index.js'},
   'perf_hooks': {node: 'empty'},
-  'punycode': {node: 'punycode/punycodes.js'},
-  'querystring': {node: 'querystring-es3/index.js',
-    require: qw`decode encode`},
+  'punycode': {node: 'punycode/punycode.js'},
+  'querystring': {node: 'querystring-es3/index.js'},
   'readline': {node: 'empty'},
   'repl': {node: 'empty'},
   'stream': {node: 'stream-browserify/index.js'},
@@ -136,6 +137,7 @@ let mod_map = {
   '_stream_readable': {node: 'readable-stream/readable.js'},
   '_stream_transform': {node: 'readable-stream/transform.js'},
   '_stream_writable': {node: 'readable-stream/writable.js'},
+  'safe-buffer': {node: 'safe-buffer/index.js'}, // for string_decoder
   'string_decoder': {node: 'string_decoder/lib/string_decoder.js'},
   'sys': {node: 'util/util.js'},
   'timers': {node: 'timers-browserify/main.js'},
@@ -150,15 +152,20 @@ let mod_map = {
 for (const [name, m] of Object.entries(mod_map)){
   m.is_dir = path_is_dir(name);
   if (m.node){
+    m.type = 'cjs';
+    m.add_dir = '/browserify/node_modules'
     if (m.node=='empty')
-      m.url = '/lif_mod_empty.js';
+      m.uri = '/lif_mod_empty.js';
     else if (m.node=='error')
-      m.url = '/lif_mod_error.js';
-    else
-      m.url = '/.lif/pkgroot/node_modules'+m.node;
+      m.uri = '/lif_mod_error.js';
+    else {
+      m.uris = ['/.lif/pkgroot/node_modules'+m.add_dir+'/'+m.node,
+        '/.lif/pkgroot/node_modules/'+m.node];
+      m.uri = m.uris[m.uris.length-1];
+    }
   }
-  m.type = 'cjs';
-  m.u = url_parse(m.url);
+  if (m.body!==undefined)
+    m.type = 'body';
 }
 
 const mod_get = path=>{
@@ -176,10 +183,65 @@ const mod_get = path=>{
   }
   if (!mod)
     return;
-  mod.url = m.is_dir && mod.rest ? m.u.origin+m.u.dir+mod.rest : m.url;
-  mod.u = url_parse(mod.url);
+  if (m.url){
+    let u = url_parse(m.url);
+    mod.url = m.is_dir && mod.rest ? u.origin+u.dir+mod.rest : m.url;
+  } else if (m.uri){
+    let u = uri_parse(m.uri);
+    mod.uri = m.is_dir && mod.rest ? u.dir+mod.rest : m.uri;
+  }
   return mod;
 };
+
+const mod_to_esm = (module, body)=>{
+  let mod = mod_get(module);
+  let m = mod.m;
+  let mod_json = JSON.stringify(module);
+  let res = '';
+  let exports = '';
+  m?.exports?.forEach(e=>exports += `export const ${e} = mod.exports.${e};\n`);
+  exports += `export default mod.exports;\n`;
+  let lb_header = `
+    let lb = window.lif.boot;
+    let define = function(id, deps, factory){
+      return lb.define_amd(${mod_json}, arguments); };
+    define.amd = {};
+    let require = function(deps, cb){
+      return lb.require_amd(${mod_json}, deps, cb); };
+  `;
+  if (m.type=='global'){
+    res = body+`;
+      export default window.${mod.global};
+    `;
+  } else if (m.type=='amd'){
+    res = lb_header+body;
+    res += `let mod = await lb.module_get(${mod_json});\n`;
+    res += exports;
+  } else if (m.type=='cjs'){
+    let paths = cjs_require_scan(body);
+    res = lb_header;
+    paths.forEach(p=>res += `await require_single(${JSON.stringify(p)});\n`);
+    res += body+';'+exports;
+  }
+  if (!res)
+    res = body;
+  return res;
+};
+
+// "const mod = require('module');" -> ["module"]
+let cjs_require_scan = function(js){
+  // poor-man's require('module') scanner. in the future use a AST parser
+  let requires = [...js.matchAll(
+    /\brequire\s*\(\s*(['"])([^'"\\]+)(['"])\s*\)/g)];
+  let paths = [];
+  requires.forEach(([, q1, file, q2])=>{
+    if (q1!=q2)
+      return;
+    paths.push(file);
+  });
+  return paths;
+};
+
 let ext_react = ['.ts', '.tsx', '/index.ts', '/index.tsx'];
 let ext_esm = ['/index.mjs'];
 let pkg_map = {
@@ -213,48 +275,29 @@ async function fetch_try(urls){
     console.error('failed module '+urls);
   return {response, url};
 }
+
 //let log = console.log.bind(console);
 let log = ()=>0;
 async function _sw_fetch(event){
   let {request, request: {url}} = event;
-  const _url = url; // orig
   let u = url_parse(url);
   let ref = request.headers.get('referrer');
   let external = u.origin!=self.location.origin;
-  let path = u.pathname;
+  let path = u.path;
   if (request.method!='GET')
     return fetch(request);
   let v;
-  log('Req '+_url+(_url!=url ? '->'+url : ''));
+  log('Req '+url);
   let pkg = pkg_get(path);
   if (external)
     return fetch(request);
   if (v=str_prefix(path, '/.lif/esm/')){ // rename /.lif/global/
-    let module = v.rest;
-    let mod;
+    let module = v.rest, mod;
     if (!(mod=mod_get(module)))
       throw Error('no module found: '+module);
     let response = await fetch(mod.url);
-    let body = await response.text();
-    let res = body;
-    if (mod.m.type=='global'){
-      res += `
-        export default window.${mod.global};
-      `;
-    } else if (mod.m.type=='amd'){
-      let mod_json = JSON.stringify(module);
-      res = `
-        let lif_boot = window.lif.boot;
-        let define = function(id, deps, factory){
-          return lif_boot.define_amd(${mod_json}, arguments); };
-        define.amd = {};
-        let require = function(deps, cb){
-          return lif_boot.require_amd(${mod_json}, deps, cb); };
-        `+res;
-      res += `let mod = await lif_boot.module_get(${mod_json});\n`;
-      mod.m.exports.forEach(e=>res += `export const ${e} = mod.exports.${e};\n`);
-      res += `export default mod.exports;\n`;
-    }
+    let body = mod.body!==undefined ? mod.body : await response.text();
+    let res = mod_to_esm(module, body);
     log(`module ${mod.name} loaded ${path} ${mod.url}`);
     return new Response(res, {headers});
   }
