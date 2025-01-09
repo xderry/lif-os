@@ -66,13 +66,7 @@ let mod_map = {
       unstable_renderSubtreeIntoContainer version`,
   },
   'react/jsx-runtime/': {type: 'cjs',
-    // https://unpkg.com/jsx-runtime@1.2.0/index.js
     url: 'https://unpkg.com/jsx-runtime@1.2.0/index.js',
-    test: {require: qw`./lib/renderer ./lib/interpreter`},
-    // cjs: require('./lib/renderer')
-    exports: qw`default`,
-    // cjs: module.exports =
-    // esm: export exports as default;
   },
   // https://esm.sh/react-dom@18.2.0/client
   // import "/v135/react-dom@18.2.0/es2022/react-dom.mjs";
@@ -188,7 +182,7 @@ const mod_get = path=>{
     mod.url = m.is_dir && mod.rest ? u.origin+u.dir+mod.rest : m.url;
   } else if (m.uri){
     let u = uri_parse(m.uri);
-    mod.uri = m.is_dir && mod.rest ? u.dir+mod.rest : m.uri;
+    mod.url = m.is_dir && mod.rest ? u.dir+mod.rest : m.uri;
   }
   return mod;
 };
@@ -221,7 +215,7 @@ const mod_to_esm = (module, body)=>{
     let paths = cjs_require_scan(body);
     res = lb_header;
     paths.forEach(p=>res += `await require_single(${JSON.stringify(p)});\n`);
-    res += body+';'+exports;
+    res += body+';\n'+exports;
   }
   if (!res)
     res = body;
@@ -296,6 +290,8 @@ async function _sw_fetch(event){
     if (!(mod=mod_get(module)))
       throw Error('no module found: '+module);
     let response = await fetch(mod.url);
+    if (response.status!=200)
+      throw Error('failed fetch '+mod.url);
     let body = mod.body!==undefined ? mod.body : await response.text();
     let res = mod_to_esm(module, body);
     log(`module ${mod.name} loaded ${path} ${mod.url}`);
@@ -303,6 +299,8 @@ async function _sw_fetch(event){
   }
   if (u.ext=='.css'){
     let response = await fetch(path);
+    if (response.status!=200)
+      throw Error('failed fetch '+path);
     let body = await response.text();
     return new Response(`
         //TODO We don't track instances, so 2x imports will result in 2x style tags
