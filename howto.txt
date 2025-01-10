@@ -1,0 +1,33 @@
+lif-os
+======
+
+Install & Run
+-------------
+to install:
+$ git clone git@github.com:xderry/lif-os.git
+$ cd lif-os
+$ yarn install
+
+to run:
+$ node ./server.js -p 4000
+
+Setup conf and problems
+-----------------------
+env options:
+$ export NODE_ENV=development
+$ export NODE_ENV=production
+
+might need this:
+$ export NODE_OPTIONS=--openssl-legacy-provider
+$ npm install browserify
+
+Pages
+-----
+- http://localhost:4000/esm2.html
+  working: Gives basic react confetti app, loading resources for upkg.com, and
+  converting AMD to ESM via service worker, and transpiling TS and JSX
+  in Babel service worker.
+- http://localhost:4000/index.html
+  not working: the daedal OS.
+
+
