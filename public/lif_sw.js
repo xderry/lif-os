@@ -218,7 +218,7 @@ const mod_to_esm = (module, body)=>{
   } else if (m.type=='cjs'){
     let paths = cjs_require_scan(body);
     res = lb_header;
-    paths.forEach(p=>res += `await require_single(${JSON.stringify(p)});\n`);
+    paths.forEach(p=>res += `await require_single(module, ${JSON.stringify(p)});\n`);
     res += body+';\n'+exports;
   }
   if (!res)

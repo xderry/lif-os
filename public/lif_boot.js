@@ -38,22 +38,22 @@ lif.boot = {
     });
     return promise;
   },
-  require_amd: function(module_ctx, deps, cb){
+  require_amd: function(mod_self, deps, cb){
     if (!cb)
       return lb.require_cache(deps);
     let _deps = [];
-    let m = modules[module_ctx] || {module: {exports: {}}};
+    let m = modules[mod_self] || {module: {exports: {}}};
     return (async()=>{
       for (let i=0; i<deps.length; i++){
         let dep = deps[i], v;
         switch (dep){
         case 'require':
           v = function(deps, cb){
-            return lb.require_amd(module_ctx, deps, cb); };
+            return lb.require_amd(mod_self, deps, cb); };
           break;
         case 'exports': v = m.module.exports; break;
         case 'module': v = m.module; break;
-        default: v = await lb.require_single(dep);
+        default: v = await lb.require_single(mod_self, dep);
         }
         _deps[i] = v;
       }
@@ -68,7 +68,7 @@ lif.boot = {
       await m.promise;
     return m.module;
   },
-  require_single: async function(module_id){
+  require_single: async function(mod_self, module_id){
     let m = modules[module_id];
     if (m){
       if (!m.loaded)
@@ -78,7 +78,13 @@ lif.boot = {
     let resolve, promise = new Promise(res=>resolve = res);
     m = modules[module_id] = {module_id, deps: [], promise,
       loaded: false, module: {exports: {}}};
-    m.mod = await import(module_id);
+    try {
+      m.mod = await import(module_id);
+    } catch(error){
+      console.log('import('+module_id+') failed fetch '+url+' from '+mod_self,
+        error);
+      throw error;
+    }
     m.loaded = true;
     m.module.exports = m.mod.default || m.mod;
     resolve(m.modules.exports);
