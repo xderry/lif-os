@@ -1,17 +1,50 @@
 // author: derry. coder: arik.
 'use strict';
-import assert from 'assert';
 import events from 'events';
-import xutil from './util.js';
-import array from './array.js';
-import __xerr from './xerr.js';
-let xerr = __xerr;
-const is_node = typeof window==='undefined';
+let assert;
 var _process;
-if (!is_node)
+let xerr;
+const is_node = typeof window==='undefined';
+if (!is_node){
   _process = {nextTick: function(fn){ setTimeout(fn, 0); }, env: {}};
-else
-  _process = process;
+  xerr = function(){ console.log.apply(console, arguments); };
+  xerr.debug = function(){};
+  xerr.is = function(){ return false; };
+  xerr.L = {DEBUG: 0};
+  assert = function(val, msg){
+    if (val)
+      return;
+    console.error(msg);
+    debugger;
+  };
+} else {
+  _process = global.process;
+  assert = await import('assert');
+  xerr = await import('./xerr.js');
+}
+
+// util.js
+const clamp = (lower_bound, val, upper_bound)=>
+  val<lower_bound ? lower_bound : ? val<upper_bound : val ? upper_bound;
+// array.js
+rm_elm_tail = function(a, elm){
+  var i = a.length-1;
+  if (elm===a[i]){ // fast-path
+    a.pop();
+    return elm;
+  }
+  if ((i = a.lastIndexOf(elm, i-1))<0)
+    return;
+  a.splice(i, 1);
+  return elm;
+};
+// node-inherits
+const inherits = (ctor, superCtor)=>{
+  ctor.super_ = superCtor;
+  ctor.prototype = Object.create(superCtor.prototype,
+    {constructor: {value: ctor, enumerable: false, writable: true,
+    configurable: true}});
+};
 
 var E = Etask;
 var etask = Etask;
@@ -158,11 +191,11 @@ function Etask(opt, states){
     this._next_run();
   return this;
 }
-xutil.inherits(Etask, events.EventEmitter);
+inherits(Etask, events.EventEmitter);
 
 E.prototype._root_remove = function(){
   assert(!this.parent, 'cannot remove from root when has parent');
-  if (!array.rm_elm_tail(E.root, this))
+  if (!rm_elm_tail(E.root, this))
     assert(0, 'etask not in root\n'+E.ps({MARK: this}));
 };
 
@@ -178,7 +211,7 @@ E.prototype._parent_remove = function(){
     this._parent_guess_remove();
   if (!this.parent)
     return this._root_remove();
-  if (!array.rm_elm_tail(this.parent.child, this)){
+  if (!rm_elm_tail(this.parent.child, this)){
     assert(0, 'etask child not in parent\n'
         +E.ps({MARK: [['child', this], ['parent', this.parent]]}));
   }
@@ -453,7 +486,7 @@ E.prototype._spawn_parent_guess = function(parent){
   parent.child_guess.push(this);
 };
 E.prototype._parent_guess_remove = function(){
-  if (!array.rm_elm_tail(this.parent_guess.child_guess, this))
+  if (!rm_elm_tail(this.parent_guess.child_guess, this))
     assert(0, 'etask not in parent_guess\n'+E.ps({MARK: this}));
   this.parent_guess = undefined;
 };
@@ -1157,14 +1190,14 @@ E._apply = function(opt, func, _this, args){
           for (i=0; i<opt.ret_o.length; i++)
             o[opt.ret_o[i]] = arguments[i+nfn];
         } else if (typeof opt.ret_o=='string')
-          o[opt.ret_o] = array.slice(arguments, nfn);
+          o[opt.ret_o] = [...arguments].slice(nfn);
         else
           assert(0, 'invalid opt.ret_o');
         if (typeof opt.ret_sync=='string')
           o[opt.ret_sync] = ret_sync;
         res = o;
       } else if (opt.ret_a)
-        res = array.slice(arguments, nfn);
+        res = [...arguments].slice(nfn);
       else if (!nfn)
         res = err;
       et.continue(nfn ? E.err_res(err, res) : res);
@@ -1306,7 +1339,7 @@ E.interval = function(opt, states){
   if (opt.mode=='smart' || !opt.mode){
     var now;
     return E.for(function(){ now = Date.now(); return true; }, function(){
-      var delay = xutil.clamp(0, now+opt.ms-Date.now(), Infinity);
+      var delay = clamp(0, now+opt.ms-Date.now(), Infinity);
       return etask.sleep(delay);
     }, states);
   }
