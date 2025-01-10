@@ -97,6 +97,8 @@ let mod_map = {
     url: 'https://unpkg.com/framer-motion@11.11.17/dist/es/index.mjs'},
   'styled-components': {type: 'esm',
     url: 'https://unpkg.com/styled-components@4.3.2/dist/styled-components.esm.js'},
+  'stylis': {type: 'esm',
+    url: 'https://unpkg.com/stylis@4.3.4/index.js'},
 
   // browserify dummy nodes:
   'object.assign': {body:
@@ -274,6 +276,7 @@ async function fetch_try(urls){
 
 //let log = console.log.bind(console);
 let log = ()=>0;
+//let log = function(){ if (!url.includes('sty')) return; console.log(url, ...arguments); };
 async function _sw_fetch(event){
   let {request, request: {url}} = event;
   let u = url_parse(url);
@@ -290,7 +293,7 @@ async function _sw_fetch(event){
   if (v=str_prefix(path, '/.lif/esm/')){ // rename /.lif/global/
     let module = v.rest, mod;
     if (!(mod=mod_get(module)))
-      throw Error('no module found: '+module);
+      throw Error('no module found: '+module+' referrer '+ref);
     let response = await fetch(mod.url);
     if (response.status!=200)
       throw Error('failed fetch '+mod.url);
