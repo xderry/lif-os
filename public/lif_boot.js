@@ -2,6 +2,14 @@ let lif = {};
 window.lif = lif;
 let modules = {};
 let lb;
+// Promise with Promise.return() and Promise.throw()
+let promise_ex = ()=>{
+  let _resolve, _reject;
+  let promise = new Promise(resolve=>_resolve = resolve,
+    reject=>_reject = reject);
+  promise.return = _resolve;
+  promise.throw = _reject;
+};
 lif.boot = {
   define_amd: function(module_id, args){
     var _module_id /* ignored */, deps, factory;
@@ -26,7 +34,7 @@ lif.boot = {
     }
     if (modules[module_id])
       throw Error('defile('+module_id+') already defined');
-    let resolve, promise = new Promise(res=>resolve = res);
+    let promise = promise_ex();
     let m = modules[module_id] = {module_id, deps, factory, loaded: false,
       promise, module: {exports: {}}};
     lb.require_amd(module_id, deps, function(...deps){
@@ -34,7 +42,7 @@ lif.boot = {
       if (exports)
         m.module.exports = exports;
       m.loaded = true;
-      resolve(m.module.exports);
+      promise.return(m.module.exports);
     });
     return promise;
   },

@@ -55,6 +55,8 @@ const uri_parse = uri=>{
   return u;
 };
 
+let npm_root = ['https://unpkg.com'];
+let mod_load = {};
 
 // see index.html for coresponding import maps
 let mod_map = {
@@ -97,8 +99,15 @@ let mod_map = {
     url: 'https://unpkg.com/framer-motion@11.11.17/dist/es/index.mjs'},
   'styled-components': {type: 'esm',
     url: 'https://unpkg.com/styled-components@4.3.2/dist/styled-components.esm.js'},
-  'stylis': {type: 'esm',
+  'stylis/stylis.min': {type: 'esm',
     url: 'https://unpkg.com/stylis@4.3.4/index.js'},
+  'stylis-rule-sheet': "/.lif/esm/stylis-rule-sheet",
+  '@emotion/': {type: 'esm',
+  '/.lif/esm/@emotion/',
+  'react-is': '/.lif/esm/react-is',
+  'memoize-one': '/.lif/esm/memoize-one',
+  'prop-types': '/.lif/esm/prop-types',
+  'merge-anything': '/.lif/esm/merge-anything',
 
   // browserify dummy nodes:
   'object.assign': {body:
@@ -280,7 +289,7 @@ let log = ()=>0;
 async function _sw_fetch(event){
   let {request, request: {url}} = event;
   let u = url_parse(url);
-  let ref = request.headers.get('referrer');
+  let ref = request.headers.get('referer');
   let external = u.origin!=self.location.origin;
   let path = u.path;
   if (request.method!='GET')
@@ -291,9 +300,29 @@ async function _sw_fetch(event){
   if (external)
     return fetch(request);
   if (v=str_prefix(path, '/.lif/esm/')){ // rename /.lif/global/
-    let module = v.rest, mod;
+    let module = v.rest, mod, mod_l;
+    mod = mod_get(module);
+    if (!mod?.url){
+      if (!(mod_l = mod_load[module])){
+        mod_l = mod_load[module] = {mod: mod, loaded: false, wait: [],
+        mod_l.pkg_json_uri = (mod.?ver && !module.includes('@') ? '@'+mod.ver)
+            +'/'+module+'/package.json';
+      }
+      if (!mod_l.loaded){
+      let pkg_json = npm_root[0]+mod_l.pkg_json;
+      let response = await fetch(pkg_json);
+      if (response.status!=200)
+        throw Error('failed fetch '+pkg_url);
+      let body = await response.json();
+    }
     if (!(mod=mod_get(module)))
-      throw Error('no module found: '+module+' referrer '+ref);
+      throw Error('no module found: '+module);
+    if (!mod.url)
+    if (mod.type=='esm' && !mod.url){
+      let response = await fetch(mod.url);
+      mod.url = await mod_esm_get_url(
+    await 
+    }
     let response = await fetch(mod.url);
     if (response.status!=200)
       throw Error('failed fetch '+mod.url);
