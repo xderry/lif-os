@@ -2,10 +2,19 @@
 
 /*global Babel*/
 importScripts('https://unpkg.com/@babel/standalone@7.26.4/babel.js');
-
 // this is needed to activate the worker immediately without reload
 // @see https://developers.google.com/web/fundamentals/primers/service-workers/lifecycle#clientsclaim
 self.addEventListener('activate', event=>event.waitUntil(clients.claim()));
+
+// Promise with Promise.return() and Promise.throw()
+let promise_ex = ()=>{
+  let _resolve, _reject;
+  let promise = new Promise(resolve=>_resolve = resolve,
+    reject=>_reject = reject);
+  promise.return = _resolve;
+  promise.throw = _reject;
+  return promise;
+};
 
 const array = {}; // array.js
 array.compact = a=>a.filter(e=>e);
@@ -55,7 +64,7 @@ const uri_parse = uri=>{
   return u;
 };
 
-let npm_root = ['https://unpkg.com'];
+let npm_cdn = ['https://unpkg.com'];
 let mod_load = {};
 
 // see index.html for coresponding import maps
@@ -101,13 +110,6 @@ let mod_map = {
     url: 'https://unpkg.com/styled-components@4.3.2/dist/styled-components.esm.js'},
   'stylis/stylis.min': {type: 'esm',
     url: 'https://unpkg.com/stylis@4.3.4/index.js'},
-  'stylis-rule-sheet': "/.lif/esm/stylis-rule-sheet",
-  '@emotion/': {type: 'esm',
-  '/.lif/esm/@emotion/',
-  'react-is': '/.lif/esm/react-is',
-  'memoize-one': '/.lif/esm/memoize-one',
-  'prop-types': '/.lif/esm/prop-types',
-  'merge-anything': '/.lif/esm/merge-anything',
 
   // browserify dummy nodes:
   'object.assign': {body:
@@ -273,6 +275,8 @@ const headers = new Headers({
 });
 async function fetch_try(urls){
   let response, url;
+  if (typeof urls=='string')
+    urls = [urls];
   for (url of urls){
     response = await fetch(url);
     if (response.status==200)
@@ -300,33 +304,37 @@ async function _sw_fetch(event){
   if (external)
     return fetch(request);
   if (v=str_prefix(path, '/.lif/esm/')){ // rename /.lif/global/
-    let module = v.rest, mod, mod_l;
+    let module = v.rest, mod, mod_url;
     mod = mod_get(module);
-    if (!mod?.url){
-      if (!(mod_l = mod_load[module])){
-        mod_l = mod_load[module] = {mod: mod, loaded: false, wait: [],
-        mod_l.pkg_json_uri = (mod.?ver && !module.includes('@') ? '@'+mod.ver)
-            +'/'+module+'/package.json';
+    if (!mod){
+      let ml;
+      if (!(ml = mod_load[module])){
+        ml = mod_load[module] = {mod: mod, loaded: false, wait: []};
+        ml.pkg_base = '/'+module+'/'
+          +(mod?.ver && !module.includes('@') ? '@'+mod.ver : '')+'/';
+        ml.promise = promise_ex();
+        try {
+          ml.pkg_json_url = npm_cdn[0]+'/'+ml.pkg;
+          let urls = [], response;
+          npm_cdn.forEach(cdn=>urls.push(cdn+ml.pkg_base+'package.json'));
+          ({response, url: ml.pkg_json_url} = await fetch_try(urls));
+          let pkg = ml.pkg_json = await response.json();
+          ml.loaded = true;
+          if (!(ml.main = pkg.module||pkg.main))
+            throw Error('midding module main: '+module, pkg);
+          ml.main_url = ml.pkg_base+ml.main;
+          ml.promise.return();
+        } catch(error){
+          ml.promise.throw(error);
+          throw(error);
+        }
       }
-      if (!mod_l.loaded){
-      let pkg_json = npm_root[0]+mod_l.pkg_json;
-      let response = await fetch(pkg_json);
-      if (response.status!=200)
-        throw Error('failed fetch '+pkg_url);
-      let body = await response.json();
-    }
-    if (!(mod=mod_get(module)))
-      throw Error('no module found: '+module);
-    if (!mod.url)
-    if (mod.type=='esm' && !mod.url){
-      let response = await fetch(mod.url);
-      mod.url = await mod_esm_get_url(
-    await 
-    }
-    let response = await fetch(mod.url);
-    if (response.status!=200)
-      throw Error('failed fetch '+mod.url);
-    let body = mod.body!==undefined ? mod.body : await response.text();
+      await ml.promise;
+      mod_url = ml.main_url;
+    } else
+      mod_url = mod.url;
+    let {response} = await fetch_try(mod_url);
+    let body = mod?.body!==undefined ? mod.body : await response.text();
     let res = mod_to_esm(module, body);
     log(`module ${mod.name} loaded ${path} ${mod.url}`);
     return new Response(res, {headers});

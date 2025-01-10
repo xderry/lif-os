@@ -9,6 +9,7 @@ let promise_ex = ()=>{
     reject=>_reject = reject);
   promise.return = _resolve;
   promise.throw = _reject;
+  return promise;
 };
 lif.boot = {
   define_amd: function(module_id, args){
@@ -33,7 +34,7 @@ lif.boot = {
       factory = undefined;
     }
     if (modules[module_id])
-      throw Error('defile('+module_id+') already defined');
+      throw Error('define('+module_id+') already defined');
     let promise = promise_ex();
     let m = modules[module_id] = {module_id, deps, factory, loaded: false,
       promise, module: {exports: {}}};
@@ -72,15 +73,13 @@ lif.boot = {
     let m = modules[module_id];
     if (!m)
       throw Error('module '+module_id+' not loaded');
-    if (!m.loaded)
-      await m.promise;
+    await m.promise;
     return m.module;
   },
   require_single: async function(mod_self, module_id){
     let m = modules[module_id];
     if (m){
-      if (!m.loaded)
-        await m.promise;
+      await m.promise;
       return m.module.exports;
     }
     let resolve, promise = new Promise(res=>resolve = res);
