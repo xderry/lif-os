@@ -15,19 +15,19 @@ if (!is_node){
     if (val)
       return;
     console.error(msg);
-    debugger;
+    debugger; // eslint-disable-line no-debugger
   };
 } else {
-  _process = global.process;
+  _process = process; /*global process*/
   assert = await import('assert');
   xerr = await import('./xerr.js');
 }
 
 // util.js
 const clamp = (lower_bound, val, upper_bound)=>
-  val<lower_bound ? lower_bound : ? val<upper_bound : val ? upper_bound;
+  val<lower_bound ? lower_bound : val<upper_bound ? val : upper_bound;
 // array.js
-rm_elm_tail = function(a, elm){
+const rm_elm_tail = function(a, elm){
   var i = a.length-1;
   if (elm===a[i]){ // fast-path
     a.pop();

@@ -29,7 +29,7 @@ export default [...compat.extends("eslint:recommended"), {
     globals: {
       ...globals.browser,
     },
-    ecmaVersion: 12,
+    ecmaVersion: 'latest',
     sourceType: "module",
     parserOptions: {
       ecmaFeatures: {
@@ -45,5 +45,6 @@ export default [...compat.extends("eslint:recommended"), {
     "no-constant-condition": 'off',
     "no-unreachable": 'off',
     "no-useless-escape": 'off',
+    "no-empty": 'off',
   },
 }];
