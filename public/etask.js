@@ -1,8 +1,8 @@
 // author: derry. coder: arik.
 'use strict';
 import assert from 'assert';
+import events from 'events';
 import xutil from './util.js';
-import events from './events.js';
 import array from './array.js';
 import __xerr from './xerr.js';
 let xerr = __xerr;
@@ -12,8 +12,6 @@ if (!is_node)
   _process = {nextTick: function(fn){ setTimeout(fn, 0); }, env: {}};
 else
   _process = process;
-
-export default Etask;
 
 var E = Etask;
 var etask = Etask;
@@ -33,7 +31,7 @@ function _cb_post(et, ctx){
   var ms = Date.now()-ctx.start;
   if (longcb_ms && ms>longcb_ms){
     xerr('long cb '+ms+'ms: '+et.get_name()+', '
-        +et.run_state.f.toString().slice(0, 128));
+      +et.run_state.f.toString().slice(0, 128));
   }
   if (perf_enable){
     var name = et.get_name();
@@ -45,13 +43,11 @@ function _cb_post(et, ctx){
   }
 }
 function cb_set(){
-  if (longcb_ms || perf_enable)
-  {
+  if (longcb_ms || perf_enable){
     cb_pre = _cb_pre;
     cb_post = _cb_post;
     cb_ctx = {start: Date.now()};
-  }
-  else
+  } else
     cb_pre = cb_post = cb_ctx = undefined;
 }
 E.longcb = function(ms){
@@ -158,8 +154,7 @@ function Etask(opt, states){
         return;
       _this._got_retval(wait_retval);
     });
-  }
-  else
+  } else
     this._next_run();
   return this;
 }
@@ -259,11 +254,9 @@ E.prototype._next = function(rv){
     if (this.run_state.try_catch){
       this.use_retval = true;
       for (; state<states.length && states[state].sig; state++);
-    }
-    else
+    } else
       for (; state<states.length && !states[state].catch; state++);
-  }
-  else {
+  } else {
     for (; state<states.length &&
         (states[state].sig || states[state].catch); state++);
   }
@@ -295,8 +288,7 @@ E.prototype._handle_rv = function(rv){
     }
     rv.err = ret.error;
     rv.ret = ret.retval;
-  }
-  else if (ret instanceof Etask_err){
+  } else if (ret instanceof Etask_err){
     rv.err = ret.error;
     rv.ret = undefined;
   } else if (typeof ret.then=='function'){ // promise
@@ -857,8 +849,7 @@ E.prototype.stack = function(flags){
     else if (et.parent){
       _s = (et.parent_type=='call' ? 'CALL' : 'SPAWN')+' '+_s;
       et = et.parent;
-    }
-    else if (et.parent_guess && flags.GUESS)
+    } else if (et.parent_guess && flags.GUESS)
       [_s, et] = ['SPAWN? '+_s, et.parent_guess];
     else
       et = undefined;
@@ -1090,8 +1081,7 @@ E.all = function(a_or_o, ao2){
       i++;
       return this.goto('loop');
     }]);
-  }
-  else if (a_or_o instanceof Object){
+  } else if (a_or_o instanceof Object){
     var keys = Object.keys(a_or_o), o = {};
     i = 0;
     return etask({name: 'all_o', cancel: true}, [function(){
@@ -1166,16 +1156,14 @@ E._apply = function(opt, func, _this, args){
         if (Array.isArray(opt.ret_o)){
           for (i=0; i<opt.ret_o.length; i++)
             o[opt.ret_o[i]] = arguments[i+nfn];
-        }
-        else if (typeof opt.ret_o=='string')
+        } else if (typeof opt.ret_o=='string')
           o[opt.ret_o] = array.slice(arguments, nfn);
         else
           assert(0, 'invalid opt.ret_o');
         if (typeof opt.ret_sync=='string')
           o[opt.ret_sync] = ret_sync;
         res = o;
-      }
-      else if (opt.ret_a)
+      } else if (opt.ret_a)
         res = array.slice(arguments, nfn);
       else if (!nfn)
         res = err;
@@ -1239,7 +1227,7 @@ E.augment = function(_prototype, method, e_method){
 
 E.wait = function(timeout){
   return etask({name: 'wait', cancel: true},
-      [function(){ return this.wait(timeout); }]);
+    [function(){ return this.wait(timeout); }]);
 };
 E.to_nfn = function(promise, cb, opt){
   return etask({name: 'to_nfn', async: true}, [function try_catch$(){
@@ -1368,9 +1356,11 @@ E.shutdown = function(){
     {
       assert(e.tm_completed);
       xerr.xexit('etask root not removed after return - '+
-          'fix non-cancelable child etask');
+        'fix non-cancelable child etask');
     }
     prev = e;
     e.return();
   }
 };
+
+export default Etask;
