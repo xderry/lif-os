@@ -308,12 +308,21 @@ async function npm_load(log, module){
     let urls = [];
     npm.wait = xpromise();
     npm_cdn.forEach(cdn=>urls.push(cdn+'/'+npm.mod_ver+'/package.json'));
-    let {response, pkg_url, idx} = await fetch_try(log, urls);
+    let {response, url, idx} = await fetch_try(log, urls);
+    let msg = ' in '+module+' '+url;
     npm.cdn = npm_cdn[idx];
     let pkg = npm.pkg = await response.json();
-    if (npm.main = pkg.module || pkg?.exports?.['.'] || pkg.main);
+    if (!pkg)
+      throw Error('empty package.json '+msg);
+    let main;
+    if (!(main = pkg.module || pkg.exports?.['.'] || pkg.main))
+      throw Error('missing module main: '+module+' in '+url);
+    if (typeof main=='string')
+      npm.main = main;
+    else if (main.default)
+      npm.main = main.default;
     else
-      throw Error('missing module main: '+module+' in '+pkg_url);
+      throw Error('cannot parse main '+JSON.stringify(main)+msg);
     npm.main_dir = path_dir(npm.main);
     npm.wait.return();
   } catch(error){

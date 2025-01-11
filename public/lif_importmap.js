@@ -37,7 +37,7 @@ let importmap_calc = ()=>{
   a.forEach(e=>{
     let p = '/.lif/esm/'+e;
     imports[e] = p+'/';
-    //imports[e+'/'] = p+'/';
+    imports[e+'/'] = p+'/';
     //scopes[e+'/'] = {[e+'/']: p+'/'};
     //scopes['/'+e+'/'] = {['/'+e+'/']: p+'/'};
   });
