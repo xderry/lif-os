@@ -18,7 +18,7 @@ string.qw = function(s){
 const qw = string.qw;
 
 let importmap = {imports: {}, scopes: {}};
-let importmap_calc = ()=>{
+let importmap_gen = ()=>{
   let {imports, scopes} = importmap, a;
   imports['next/dynamic'] = './lif_next_dynamic.js';
   // core react
@@ -38,23 +38,17 @@ let importmap_calc = ()=>{
     let p = '/.lif/esm/'+e;
     imports[e] = p+'/';
     imports[e+'/'] = p+'/';
-    //scopes[e+'/'] = {[e+'/']: p+'/'};
-    //scopes['/'+e+'/'] = {['/'+e+'/']: p+'/'};
   });
-  a = qw`components hooks contexts pages utils`;
+  a = qw`components hooks contexts pages utils public`;
   a.forEach(e=>{
     let p = '/.lif/pkgroot/'+e;
-    //imports[e] = p;
     imports[e+'/'] = p+'/';
     imports['/'+e+'/'] = p+'/';
-    //scopes[e] = {[e]: p};
-    //scopes[e+'/'] = {[e+'/']: p+'/'};
-    //scopes['/'+e+'/'] = {['/'+e+'/']: p+'/'};
   });
   return importmap;
 };
 let importmap_load = ()=>{
-  let importmap = importmap_calc();
+  let importmap = importmap_gen();
   let im = document.createElement('script');
   im.type = 'importmap';
   im.textContent = JSON.stringify(importmap);
