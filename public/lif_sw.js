@@ -6,27 +6,18 @@ importScripts('https://unpkg.com/@babel/standalone@7.26.4/babel.js');
 // @see https://developers.google.com/web/fundamentals/primers/service-workers/lifecycle#clientsclaim
 self.addEventListener('activate', event=>event.waitUntil(clients.claim()));
 
-// Promise with Promise.return() and Promise.throw()
+// Promise with return() and throw()
 let promise_ex = ()=>{
   let _resolve, _reject;
-  let promise = new Promise(resolve=>_resolve = resolve,
-    reject=>_reject = reject);
+  let promise = new Promise((resolve, reject)=>{
+    _resolve = resolve; _reject = reject;});
   promise.return = _resolve;
   promise.throw = _reject;
   return promise;
 };
 
-const array = {}; // array.js
-array.compact = a=>a.filter(e=>e);
-array.to_nl = a=>!a?.length ? '' : a.join("\n")+"\n";
 const string = {}; // string.js
-string.split_trim = (s, sep, limit)=>array.compact(s.split(sep, limit));
-string.split_ws = s=>string.split_trim(s, /\s+/);
-string.qw = function(s){
-  if (Array.isArray(s) && !s.raw)
-    return s;
-  return string.split_ws(!Array.isArray(s) ? s : string.es6_str(arguments));
-};
+string.split_ws = s=>s.split(/\s+/).filter(s=>s);
 string.es6_str = args=>{
   var parts = args[0], s = '';
   if (!Array.isArray(parts))
@@ -37,6 +28,11 @@ string.es6_str = args=>{
     s += parts[i];
   }
   return s;
+};
+string.qw = function(s){
+  if (Array.isArray(s) && !s.raw)
+    return s;
+  return string.split_ws(!Array.isArray(s) ? s : string.es6_str(arguments));
 };
 const qw = string.qw;
 
@@ -91,6 +87,7 @@ let mod_map = {
     // amd: exports.createPortal = ...
     // esm: export createPortal = exports.createPortal;
   },
+  /*
   'react-dom-global': {type: 'global', global: 'ReactDOM',
     url: 'https://unpkg.com/react-dom@18/umd/react-dom.development.js',
     exports: qw`__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED
@@ -98,18 +95,21 @@ let mod_map = {
       unmountComponentAtNode unstable_batchedUpdates
       unstable_renderSubtreeIntoContainer version`,
   },
+  */
   'canvas-confetti': {type: 'cjs',
     url: 'https://unpkg.com/canvas-confetti@1.9.3/src/confetti.js',
     exports: qw`reset create shapeFromPath shapeFromText`,
     // cjs:      module.exports.reset =
     // esm:      export const reset = module.exports.reset;
   },
+  /*
   'framer-motion/': {type: 'esm',
     url: 'https://unpkg.com/framer-motion@11.11.17/dist/es/index.mjs'},
   'styled-components': {type: 'esm',
     url: 'https://unpkg.com/styled-components@4.3.2/dist/styled-components.esm.js'},
   'stylis/stylis.min': {type: 'esm',
     url: 'https://unpkg.com/stylis@4.3.4/index.js'},
+  */
 
   // browserify dummy nodes:
   'object.assign': {body:
@@ -274,17 +274,18 @@ const headers = new Headers({
   'Content-Type': 'application/javascript',
 });
 async function fetch_try(urls){
-  let response, url;
+  let response, url, idx;
   if (typeof urls=='string')
     urls = [urls];
-  for (url of urls){
+  for (idx in urls){
+    url = urls[idx];
     response = await fetch(url);
     if (response.status==200)
       break;
   }
   if (response?.status!=200)
     console.error('failed module '+urls);
-  return {response, url};
+  return {response, url, idx};
 }
 
 //let log = console.log.bind(console);
@@ -303,26 +304,30 @@ async function _sw_fetch(event){
   let pkg = pkg_get(path);
   if (external)
     return fetch(request);
+  let l = function(){
+    if (!path.includes('stylis')) return; console.log(...arguments); };
   if (v=str_prefix(path, '/.lif/esm/')){ // rename /.lif/global/
     let module = v.rest, mod, mod_url;
-    mod = mod_get(module);
-    if (!mod){
+    l('started', module);
+    if (!(mod = mod_get(module))){
+    l('no mod', module);
       let ml;
       if (!(ml = mod_load[module])){
-        ml = mod_load[module] = {mod: mod, loaded: false, wait: []};
-        ml.pkg_base = '/'+module+'/'
+    l('no ml', module);
+        ml = mod_load[module] = {mod: mod, wait: []};
+        ml.pkg_base = '/'+module
           +(mod?.ver && !module.includes('@') ? '@'+mod.ver : '')+'/';
+    l('pkg_base', ml.pkg_base);
         ml.promise = promise_ex();
         try {
-          ml.pkg_json_url = npm_cdn[0]+'/'+ml.pkg;
-          let urls = [], response;
+          let urls = [], response, idx;
           npm_cdn.forEach(cdn=>urls.push(cdn+ml.pkg_base+'package.json'));
-          ({response, url: ml.pkg_json_url} = await fetch_try(urls));
+          ({response, idx} = await fetch_try(urls));
           let pkg = ml.pkg_json = await response.json();
-          ml.loaded = true;
-          if (!(ml.main = pkg.module||pkg.main))
-            throw Error('midding module main: '+module, pkg);
-          ml.main_url = ml.pkg_base+ml.main;
+          if (ml.main = pkg.module||pkg?.exports?.['.']||pkg.main);
+          else
+            throw Error('missing module main: '+module, pkg);
+          ml.main_url = npm_cdn[idx]+ml.pkg_base+ml.main;
           ml.promise.return();
         } catch(error){
           ml.promise.throw(error);
@@ -335,8 +340,11 @@ async function _sw_fetch(event){
       mod_url = mod.url;
     let {response} = await fetch_try(mod_url);
     let body = mod?.body!==undefined ? mod.body : await response.text();
-    let res = mod_to_esm(module, body);
-    log(`module ${mod.name} loaded ${path} ${mod.url}`);
+    let res = body;
+    if (mod){
+      res = mod_to_esm(module, body);
+      log(`module ${mod.name} loaded ${path} ${mod.url}`);
+    }
     return new Response(res, {headers});
   }
   if (u.ext=='.css'){

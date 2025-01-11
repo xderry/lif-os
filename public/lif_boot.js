@@ -2,15 +2,16 @@ let lif = {};
 window.lif = lif;
 let modules = {};
 let lb;
-// Promise with Promise.return() and Promise.throw()
+// Promise with return() and throw()
 let promise_ex = ()=>{
   let _resolve, _reject;
-  let promise = new Promise(resolve=>_resolve = resolve,
-    reject=>_reject = reject);
+  let promise = new Promise((resolve, reject)=>{
+    _resolve = resolve; _reject = reject;});
   promise.return = _resolve;
   promise.throw = _reject;
   return promise;
 };
+
 lif.boot = {
   define_amd: function(module_id, args){
     var _module_id /* ignored */, deps, factory;
@@ -88,7 +89,7 @@ lif.boot = {
     try {
       m.mod = await import(module_id);
     } catch(error){
-      console.log('import('+module_id+') failed fetch '+url+' from '+mod_self,
+      console.log('import('+module_id+') failed fetch from '+mod_self,
         error);
       throw error;
     }
@@ -103,8 +104,36 @@ lb.define_amd.amd = {};
 window.define = lb.define_amd;
 window.require = lb.require_amd;
 
+let importmap = {imports: {}};
+let importmap_calc = ()=>{
+  let m = importmap.imports, list = [];
+  m['next/dynamic'] = './lif_next_dynamic.js';
+  // core react
+  list,push(...qw`react react-dom`);
+  list,push(...qw`frameer-motion motion-dom styled-components stylis
+    stylis-rule-sheet @emotion react-is memoize-one prop-types
+    merge-anything`);
+  // core node modules
+  list.push(...qw`path assert buffer child_process cluster console
+    constants crypto dgram dns domain events fs http https http2 inspector
+    module net os path perf_hooks punycode querystring readline repl stream
+    _stream_duplex _stream_passthrough _stream_readable _stream_transform
+    _stream_writable string_decoder sys timers tls tty url util vm zlib
+    _process`);
+  list.forEach(e=>m[e] = '/.lif/esm/'+e);
+  return importmap;
+};
+let importmap_load = ()=>{
+  let importmap = importmap_calc();
+  let im = document.createElement('script');
+  im.type = 'importmap';
+  im.textContent = JSON.stringify(importmap);
+  document.currentScript.after(im);
+};
+
 (async()=>{
   try {
+    importmap_install();
     const registration = await navigator.serviceWorker.register('/lif_sw.js');
     await navigator.serviceWorker.ready;
     const launch = async()=>{
