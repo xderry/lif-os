@@ -26,7 +26,7 @@ let importmap_gen = ()=>{
   a.push(...qw`react react-dom`);
   a.push(...qw`frameer-motion motion-dom styled-components stylis
     stylis-rule-sheet @emotion react-is memoize-one prop-types
-    merge-anything framer-motion motion-utils tslib shallowequal ini`);
+    merge-anything framer-motion motion-utils tslib shallowequal ini idb`);
   // core node modules
   a.push(...qw`path assert buffer child_process cluster console
     constants crypto dgram dns domain events fs http https http2 inspector

@@ -269,9 +269,16 @@ const pkg_get = path=>{
     }
   }
 };
-const headers = new Headers({
-  'Content-Type': 'application/javascript',
-});
+let content_type_get = destination=>{
+  // audio, audioworklet, document, embed, fencedframe, font, frame, iframe,
+  // image, json, manifest, object, paintworklet, report, script,
+  // sharedworker, style, track, video, worker or xslt
+  let types = {
+    script: 'application/javascript',
+    json: 'application/json',
+  };
+  return types[destination] || types.script;
+};
 async function fetch_try(log, urls){
   let response, url, idx;
   if (typeof urls=='string')
@@ -341,9 +348,12 @@ async function _sw_fetch(event){
   let external = u.origin!=self.location.origin;
   let log_mod = url+(ref && ref!=u.origin+'/' ? ' ref '+ref : '');
   let path = u.path;
-  let log = function(){ if (!url.includes(' search ')) return; console.log(url, ...arguments); };
+  let log = function(){ if (!url.includes('search...')) return; console.log(url, ...arguments); };
+  let headers = new Headers({'content-type':
+    content_type_get(request.destination)});
   log.l = log;
   log.mod = log_mod;
+  log(request.destination, event, log_mod, headers);
   if (request.method!='GET')
     return fetch(request);
   let v;
@@ -351,7 +361,9 @@ async function _sw_fetch(event){
   let pkg = pkg_get(path);
   if (external)
     return fetch(request);
-  if (v=str_prefix(path, '/.lif/esm/')){ // rename /.lif/global/
+  if (path=='/favicon.ico')
+    return await fetch('https://raw.githubusercontent.com/DustinBrett/daedalOS/refs/heads/main/public/favicon.ico');
+  if (v=str_prefix(path, '/.lif/esm/')){
     let module = v.rest, mod, mod_url, body;
     if (mod = mod_get(module)){
       // static module
@@ -420,13 +432,11 @@ async function _sw_fetch(event){
     }
     return new Response(res.code, {headers});
   }
-  if (u.ext=='.js'){
+  if (v=str_prefix(path, '/.lif/pkgroot/')){
     let response = await fetch(path);
     let body = await response.text();
     return new Response(body, {headers});
   }
-  if (path=='/favicon.ico')
-    return await fetch('https://raw.githubusercontent.com/DustinBrett/daedalOS/refs/heads/main/public/favicon.ico');
   return await fetch(request);
 }
 
