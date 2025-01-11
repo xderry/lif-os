@@ -17,10 +17,10 @@ string.qw = function(s){
   return string.split_ws(!Array.isArray(s) ? s : string.es6_str(arguments)); };
 const qw = string.qw;
 
-let importmap = {imports: {}};
+let importmap = {imports: {}, scopes: {}};
 let importmap_calc = ()=>{
-  let m = importmap.imports, a;
-  m['next/dynamic'] = './lif_next_dynamic.js';
+  let {imports, scopes} = importmap, a;
+  imports['next/dynamic'] = './lif_next_dynamic.js';
   // core react
   a = [];
   a.push(...qw`react react-dom`);
@@ -35,14 +35,21 @@ let importmap_calc = ()=>{
     _stream_writable string_decoder sys timers tls tty url util vm zlib
     _process`);
   a.forEach(e=>{
-    m[e] = '/.lif/esm/'+e;
-    m[e+'/'] = '/.lif/esm/'+e+'/';
+    let p = '/.lif/esm/'+e;
+    imports[e] = p+'/';
+    //imports[e+'/'] = p+'/';
+    //scopes[e+'/'] = {[e+'/']: p+'/'};
+    //scopes['/'+e+'/'] = {['/'+e+'/']: p+'/'};
   });
-  a = [];
-  a.push(...qw`components hooks contexts pages utils`);
+  a = qw`components hooks contexts pages utils`;
   a.forEach(e=>{
-    m[e+'/'] = '/.lif/pkgroot/'+e+'/';
-    m['/'+e+'/'] = '/.lif/pkgroot/'+e+'/';
+    let p = '/.lif/pkgroot/'+e;
+    //imports[e] = p;
+    imports[e+'/'] = p+'/';
+    imports['/'+e+'/'] = p+'/';
+    //scopes[e] = {[e]: p};
+    //scopes[e+'/'] = {[e+'/']: p+'/'};
+    //scopes['/'+e+'/'] = {['/'+e+'/']: p+'/'};
   });
   return importmap;
 };

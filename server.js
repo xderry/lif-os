@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// to lint: $ eslint server.js public/sw.js public/index.js
+//#!/usr/bin/env node --input-type=module
+// to lint: $ eslint server.js public/lif_*.js public/index.js
 import serve from 'serve-handler';
 import http from 'http';
 import process from 'process';

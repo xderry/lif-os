@@ -58,6 +58,13 @@ const uri_parse = uri=>{
   return u;
 };
 
+// parse-package-name
+const npm_uri_parse = path=>{
+  const RE_SCOPED = /^(@[^\/]+\/[^@\/]+)(?:@([^\/]+))?(\/.*)?$/
+  const RE_NON_SCOPED = /^([^@\/]+)(?:@([^\/]+))?(\/.*)?$/
+  const m = RE_SCOPED.exec(path) || RE_NON_SCOPED.exec(path)
+  return !m ? null : {name: m[1]|| '', version: m[2]|| '', path: m[3]||''};
+};
 let npm_cdn = ['https://unpkg.com'];
 let mod_load = {};
 
@@ -72,18 +79,12 @@ let mod_map = {
   },
   'react/jsx-runtime/': {type: 'cjs',
     url: 'https://unpkg.com/jsx-runtime@1.2.0/index.js'},
-  // https://esm.sh/react-dom@18.2.0/client
-  // import "/v135/react-dom@18.2.0/es2022/react-dom.mjs";
-  // export * from "/v135/react-dom@18.2.0/es2022/client.js";
-  // export {default} from "/v135/react-dom@18.2.0/es2022/client.js";
   'react-dom': {type: 'amd',
     url: 'https://unpkg.com/react-dom@18/umd/react-dom.development.js',
     exports: qw`__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED
       createPortal createRoot findDOMNode flushSync hydrate hydrateRoot render
       unmountComponentAtNode unstable_batchedUpdates
       unstable_renderSubtreeIntoContainer version`,
-    // amd: exports.createPortal = ...
-    // esm: export createPortal = exports.createPortal;
   },
   /*
   'react-dom-global': {type: 'global', global: 'ReactDOM',
@@ -97,8 +98,6 @@ let mod_map = {
   'canvas-confetti': {type: 'cjs',
     url: 'https://unpkg.com/canvas-confetti@1.9.3/src/confetti.js',
     exports: qw`reset create shapeFromPath shapeFromText`,
-    // cjs:      module.exports.reset =
-    // esm:      export const reset = module.exports.reset;
   },
   /*
   'framer-motion/': {type: 'esm',
@@ -179,7 +178,7 @@ const mod_get = path=>{
   let mod, m, v, prefix;
   for (let name in mod_map){
     m = mod_map[name];
-    if (name==path){
+    if (name==path || name+'/'==path){ // /react -> /react/
       mod = {m, name, rest: ''};
       break;
     }
@@ -271,7 +270,7 @@ const pkg_get = path=>{
 const headers = new Headers({
   'Content-Type': 'application/javascript',
 });
-async function fetch_try(urls){
+async function fetch_try(mod_log, urls){
   let response, url, idx;
   if (typeof urls=='string')
     urls = [urls];
@@ -282,18 +281,19 @@ async function fetch_try(urls){
       break;
   }
   if (response?.status!=200)
-    console.error('failed module '+urls);
+    throw Error('failed fetch module '+urls+' for '+mod_log);
   return {response, url, idx};
 }
 
-//let log = console.log.bind(console);
 let log = ()=>0;
-//let log = function(){ if (!url.includes('sty')) return; console.log(url, ...arguments); };
+//log = console.log.bind(console);
 async function _sw_fetch(event){
   let {request, request: {url}} = event;
   let u = url_parse(url);
   let ref = request.headers.get('referer');
   let external = u.origin!=self.location.origin;
+  let mod_log = url+(ref && ref!=u.origin+'/' ? ' ref '+ref : '');
+log = function(){ if (!url.includes('framer')) return; console.log(url, ...arguments); };
   let path = u.path;
   if (request.method!='GET')
     return fetch(request);
@@ -303,24 +303,25 @@ async function _sw_fetch(event){
   if (external)
     return fetch(request);
   let l = function(){
-    if (!path.includes('stylis')) return; console.log(...arguments); };
+    if (!path.includes('react')) return; console.log(...arguments); };
   if (v=str_prefix(path, '/.lif/esm/')){ // rename /.lif/global/
     let module = v.rest, mod, mod_url;
     l('started', module);
-    if (!(mod = mod_get(module))){
+    if (mod = mod_get(module))
+      mod_url = mod.url;
+    else {
     l('no mod', module);
       let ml;
       if (!(ml = mod_load[module])){
     l('no ml', module);
         ml = mod_load[module] = {mod: mod, wait: []};
-        ml.pkg_base = '/'+module
-          +(mod?.ver && !module.includes('@') ? '@'+mod.ver : '')+'/';
+        ml.pkg_base = '/'+module+'/';
     l('pkg_base', ml.pkg_base);
         ml.promise = promise_ex();
         try {
           let urls = [], response, idx;
           npm_cdn.forEach(cdn=>urls.push(cdn+ml.pkg_base+'package.json'));
-          ({response, idx} = await fetch_try(urls));
+          ({response, idx} = await fetch_try(mod_log, urls));
           let pkg = ml.pkg_json = await response.json();
           if (ml.main = pkg.module||pkg?.exports?.['.']||pkg.main);
           else
@@ -334,9 +335,8 @@ async function _sw_fetch(event){
       }
       await ml.promise;
       mod_url = ml.main_url;
-    } else
-      mod_url = mod.url;
-    let {response} = await fetch_try(mod_url);
+    }
+    let {response} = await fetch_try(mod_log, mod_url);
     let body = mod?.body!==undefined ? mod.body : await response.text();
     let res = body;
     if (mod){
@@ -370,7 +370,7 @@ async function _sw_fetch(event){
       urls.push(url);
     else
       pkg.ext.forEach(ext=>urls.push(url+ext));
-    ({response, url: __url} = await fetch_try(urls));
+    ({response, url: __url} = await fetch_try(mod_log, urls));
     if (response?.status!=200)
       return response;
     u = url_parse(__url);
