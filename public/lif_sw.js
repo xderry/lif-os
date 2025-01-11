@@ -99,6 +99,8 @@ let mod_map = {
     url: 'https://unpkg.com/canvas-confetti@1.9.3/src/confetti.js',
     exports: qw`reset create shapeFromPath shapeFromText`,
   },
+  //'/lif_next_dynamic.js': {body:
+  //  'export function dynamic(import_fn){ return import_fn(); }'},
   /*
   'framer-motion/': {type: 'esm',
     url: 'https://unpkg.com/framer-motion@11.11.17/dist/es/index.mjs'},
