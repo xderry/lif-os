@@ -1,6 +1,6 @@
 import { join } from "path";
 import { openDB } from "idb";
-import index from "public/.index/fs.9p.json";
+import index from "public/.index/fs.9p.json" with {type: 'json'};
 import { FS_HANDLES, ONE_TIME_PASSIVE_EVENT } from "utils/constants";
 
 type BFSFS = { [key: string]: BFSFS | null };

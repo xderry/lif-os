@@ -19,7 +19,7 @@ import {
   type WallpaperFit,
   type WindowStates,
 } from "contexts/session/types";
-import defaultSession from "public/session.json";
+import defaultSession from "public/session.json" with {type: 'json'};
 import {
   DEFAULT_ASCENDING,
   DEFAULT_CLOCK_SOURCE,

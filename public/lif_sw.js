@@ -250,6 +250,11 @@ let cjs_require_scan = function(js){
   return paths;
 };
 
+let headers = {
+  js: new Headers({'content-type': 'application/javascript'}),
+  json: new Headers({'content-type': 'application/json'}),
+};
+
 let ext_react = ['.ts', '.tsx', '/index.ts', '/index.tsx'];
 let ext_esm = ['/index.mjs'];
 let pkg_map = {
@@ -349,11 +354,9 @@ async function _sw_fetch(event){
   let log_mod = url+(ref && ref!=u.origin+'/' ? ' ref '+ref : '');
   let path = u.path;
   let log = function(){ if (!url.includes('search...')) return; console.log(url, ...arguments); };
-  let headers = new Headers({'content-type':
-    content_type_get(request.destination)});
   log.l = log;
   log.mod = log_mod;
-  log(request.destination, event, log_mod, headers);
+  log(request.destination, event, log_mod);
   if (request.method!='GET')
     return fetch(request);
   let v;
@@ -383,7 +386,7 @@ async function _sw_fetch(event){
       res = mod_to_esm(module, body);
       log(`module ${mod.name} loaded ${path} ${mod.url}`);
     }
-    return new Response(res, {headers});
+    return new Response(res, {headers: headers.js});
   }
   if (u.ext=='.css'){
     let response = await fetch(path);
@@ -399,7 +402,7 @@ async function _sw_fetch(event){
         head.appendChild(style);
         export default null; //TODO here we can export CSS module instead
       `,
-      {headers}
+      {headers: headers.js}
     );
   }
   if (['.jsx', '.tsx', '.ts'].includes(u.ext) || pkg?.ext && !u.ext){
@@ -416,7 +419,8 @@ async function _sw_fetch(event){
     u = url_parse(__url);
     log.l('babel loaded module src '+__url);
     let body = await response.text();
-    let opt = {presets: [], plugins: [], sourceMaps: true};
+    let opt = {presets: [], plugins: [], sourceMaps: true,
+      generatorOpts: {'importAttributesKeyword': 'with'}}
     if (u.ext=='.tsx' || u.ext=='.ts'){
       opt.presets.push('typescript');
       opt.filename = u.file;
@@ -430,12 +434,13 @@ async function _sw_fetch(event){
       console.error('babel FAILED: '+path, err);
       throw err;
     }
-    return new Response(res.code, {headers});
+    return new Response(res.code, {headers: headers.js});
   }
   if (v=str_prefix(path, '/.lif/pkgroot/')){
     let response = await fetch(path);
-    let body = await response.text();
-    return new Response(body, {headers});
+    return response;
+    //let body = await response.text();
+    //return new Response(res.code, {headers: headers.js});
   }
   return await fetch(request);
 }

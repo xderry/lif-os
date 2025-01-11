@@ -3,7 +3,7 @@ import Head from "next/head";
 import { useFileSystem } from "contexts/fileSystem";
 import { useProcesses } from "contexts/process";
 import { useSession } from "contexts/session";
-import desktopIcons from "public/.index/desktopIcons.json";
+import desktopIcons from "public/.index/desktopIcons.json" with {type: 'json'};
 import {
   FAVICON_BASE_PATH,
   HIGH_PRIORITY_ELEMENT,

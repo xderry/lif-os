@@ -42,7 +42,7 @@ import {
   VIDEO_FILE_EXTENSIONS,
   YT_ICON_CACHE,
 } from "utils/constants";
-import shortcutCache from "public/.index/shortcutCache.json";
+import shortcutCache from "public/.index/shortcutCache.json" with {type: 'json'};
 import {
   blobToBase64,
   bufferToUrl,

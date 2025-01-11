@@ -21,7 +21,8 @@ const StartButton: FC<StartButtonProps> = ({
     if (initalizedPreload.current) return;
     initalizedPreload.current = true;
 
-    const startMenuIcons = (await import("public/.index/startMenuIcons.json"))
+    const startMenuIcons = (await import("public/.index/startMenuIcons.json",
+      {with: {type: 'json'}}))
       .default;
 
     startMenuIcons?.forEach((icon) => preloadImage(icon));
