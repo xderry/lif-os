@@ -303,7 +303,6 @@ async function npm_load(log, module){
       (!uri.path || uri.path=='/' ? npm.main : npm.main_dir+uri.path);
   };
   // load package.json to locate module's index.js
-  log.l('mod_ver', npm.mod_ver);
   try {
     let urls = [];
     npm.wait = xpromise();
@@ -330,7 +329,6 @@ async function npm_load(log, module){
     throw(error);
   }
   await npm.wait;
-  log.l('npm.main_url', npm.main_url);
   return npm;
 }
 
@@ -404,7 +402,6 @@ async function _sw_fetch(event){
     u = url_parse(__url);
     log.l('babel loaded module src '+__url);
     let body = await response.text();
-    // console.log(response);
     let opt = {presets: [], plugins: [], sourceMaps: true};
     if (u.ext=='.tsx' || u.ext=='.ts'){
       opt.presets.push('typescript');
@@ -419,8 +416,6 @@ async function _sw_fetch(event){
       console.error('babel FAILED: '+path, err);
       throw err;
     }
-    // babel --presets typescript,react app.tsx
-    // console.log('babel: '+path);
     return new Response(res.code, {headers});
   }
   if (u.ext=='.js'){
