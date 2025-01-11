@@ -12,7 +12,7 @@ playwright/.cache
 public/robots.txt
 public/rss.xml
 public/sitemap.xml
-public/.index/*
+XXX-public/.index/*
 public/Users/Public/**
 
 !public/Users/**/desktop.ini
