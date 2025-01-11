@@ -16,7 +16,8 @@ let promise_ex = ()=>{
   return promise;
 };
 
-const string = {}; // string.js
+// string.js
+const string = {};
 string.split_ws = s=>s.split(/\s+/).filter(s=>s);
 string.es6_str = args=>{
   var parts = args[0], s = '';
@@ -30,10 +31,7 @@ string.es6_str = args=>{
   return s;
 };
 string.qw = function(s){
-  if (Array.isArray(s) && !s.raw)
-    return s;
-  return string.split_ws(!Array.isArray(s) ? s : string.es6_str(arguments));
-};
+  return string.split_ws(!Array.isArray(s) ? s : string.es6_str(arguments)); };
 const qw = string.qw;
 
 const str_prefix = (url, prefix)=>{
