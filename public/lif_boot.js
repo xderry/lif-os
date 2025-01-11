@@ -12,26 +12,6 @@ let xpromise = ()=>{
   return promise;
 };
 
-const string = {}; // string.js
-string.split_ws = s=>s.split(/\s+/).filter(s=>s);
-string.es6_str = args=>{
-  var parts = args[0], s = '';
-  if (!Array.isArray(parts))
-    return parts;
-  s += parts[0];
-  for (var i = 1; i<parts.length; i++){
-    s += args[i];
-    s += parts[i];
-  }
-  return s;
-};
-string.qw = function(s){
-  if (Array.isArray(s) && !s.raw)
-    return s;
-  return string.split_ws(!Array.isArray(s) ? s : string.es6_str(arguments));
-};
-const qw = string.qw;
-
 lif.boot = {
   define_amd: function(module_id, args){
     var _module_id /* ignored */, deps, factory;
