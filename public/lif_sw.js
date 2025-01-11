@@ -7,7 +7,7 @@ importScripts('https://unpkg.com/@babel/standalone@7.26.4/babel.js');
 self.addEventListener('activate', event=>event.waitUntil(clients.claim()));
 
 // Promise with return() and throw()
-let promise_ex = ()=>{
+let xpromise = ()=>{
   let _resolve, _reject;
   let promise = new Promise((resolve, reject)=>{
     _resolve = resolve; _reject = reject;});
@@ -66,7 +66,7 @@ const npm_uri_parse = path=>{
   return !m ? null : {name: m[1]|| '', version: m[2]|| '', path: m[3]||''};
 };
 let npm_cdn = ['https://unpkg.com'];
-let mod_load = {};
+let npm_mem = {};
 
 // see index.html for coresponding import maps
 let mod_map = {
@@ -270,7 +270,7 @@ const pkg_get = path=>{
 const headers = new Headers({
   'Content-Type': 'application/javascript',
 });
-async function fetch_try(mod_log, urls){
+async function fetch_try(log, urls){
   let response, url, idx;
   if (typeof urls=='string')
     urls = [urls];
@@ -281,20 +281,60 @@ async function fetch_try(mod_log, urls){
       break;
   }
   if (response?.status!=200)
-    throw Error('failed fetch module '+urls+' for '+mod_log);
+    throw Error('failed fetch module '+urls+' for '+log.mod);
   return {response, url, idx};
 }
 
-let log = ()=>0;
-//log = console.log.bind(console);
+async function npm_load(log, module){
+  let npm, uri, mod_ver;
+  if (!(uri = npm_uri_parse(module)))
+    throw Error('invalid module name '+module);
+  mod_ver = uri.name+uri.version;
+  if (npm = npm_mem[mod_ver]){
+    await npm.wait;
+    return npm;
+  }
+  npm = npm_mem[mod_ver] = {module, uri, mod_ver};
+  npm.get_path = module=>{
+    let uri;
+    if (!(uri = npm_uri_parse(module)))
+      throw Error('invalid module name '+module);
+    return npm.cdn+'/'+npm.mod_ver+'/'+
+      (!uri.path || uri.path=='/' ? npm.main : npm.main_dir+uri.path);
+  };
+  // load package.json to locate module's index.js
+  log.l('mod_ver', npm.mod_ver);
+  try {
+    let urls = [];
+    npm.wait = xpromise();
+    npm_cdn.forEach(cdn=>urls.push(cdn+'/'+npm.mod_ver+'/package.json'));
+    let {response, pkg_url, idx} = await fetch_try(log, urls);
+    npm.cdn = npm_cdn[idx];
+    let pkg = npm.pkg = await response.json();
+    if (npm.main = pkg.module || pkg?.exports?.['.'] || pkg.main);
+    else
+      throw Error('missing module main: '+module+' in '+pkg_url);
+    npm.main_dir = path_dir(npm.main);
+    npm.wait.return();
+  } catch(error){
+    npm.wait.throw(error);
+    throw(error);
+  }
+  await npm.wait;
+  log.l('npm.main_url', npm.main_url);
+  return npm;
+}
+
 async function _sw_fetch(event){
   let {request, request: {url}} = event;
   let u = url_parse(url);
   let ref = request.headers.get('referer');
   let external = u.origin!=self.location.origin;
-  let mod_log = url+(ref && ref!=u.origin+'/' ? ' ref '+ref : '');
-log = function(){ if (!url.includes('framer')) return; console.log(url, ...arguments); };
+  let log_mod = url+(ref && ref!=u.origin+'/' ? ' ref '+ref : '');
   let path = u.path;
+  let log = function(){ if (!url.includes(' search ')) return; console.log(url, ...arguments); };
+  log.l = log;
+  log.mod = log_mod;
   if (request.method!='GET')
     return fetch(request);
   let v;
@@ -302,42 +342,21 @@ log = function(){ if (!url.includes('framer')) return; console.log(url, ...argum
   let pkg = pkg_get(path);
   if (external)
     return fetch(request);
-  let l = function(){
-    if (!path.includes('react')) return; console.log(...arguments); };
   if (v=str_prefix(path, '/.lif/esm/')){ // rename /.lif/global/
-    let module = v.rest, mod, mod_url;
-    l('started', module);
-    if (mod = mod_get(module))
+    let module = v.rest, mod, mod_url, body;
+    if (mod = mod_get(module)){
+      // static module
       mod_url = mod.url;
-    else {
-    l('no mod', module);
-      let ml;
-      if (!(ml = mod_load[module])){
-    l('no ml', module);
-        ml = mod_load[module] = {mod: mod, wait: []};
-        ml.pkg_base = '/'+module+'/';
-    l('pkg_base', ml.pkg_base);
-        ml.promise = promise_ex();
-        try {
-          let urls = [], response, idx;
-          npm_cdn.forEach(cdn=>urls.push(cdn+ml.pkg_base+'package.json'));
-          ({response, idx} = await fetch_try(mod_log, urls));
-          let pkg = ml.pkg_json = await response.json();
-          if (ml.main = pkg.module||pkg?.exports?.['.']||pkg.main);
-          else
-            throw Error('missing module main: '+module, pkg);
-          ml.main_url = npm_cdn[idx]+ml.pkg_base+ml.main;
-          ml.promise.return();
-        } catch(error){
-          ml.promise.throw(error);
-          throw(error);
-        }
-      }
-      await ml.promise;
-      mod_url = ml.main_url;
+      body = mod.body;
+    } else {
+      // npm module
+      let npm = await npm_load(log, module);
+      mod_url = npm.get_path(module);
     }
-    let {response} = await fetch_try(mod_log, mod_url);
-    let body = mod?.body!==undefined ? mod.body : await response.text();
+    if (body===undefined){
+      let {response} = await fetch_try(log, mod_url);
+      body = await response.text();
+    }
     let res = body;
     if (mod){
       res = mod_to_esm(module, body);
@@ -364,17 +383,17 @@ log = function(){ if (!url.includes('framer')) return; console.log(url, ...argum
   }
   if (['.jsx', '.tsx', '.ts'].includes(u.ext) || pkg?.ext && !u.ext){
     let response, res_status;
-    log('babel '+u.ext, url);
+    log.l('babel '+u.ext, url);
     let urls = [], __url;
     if (u.ext)
       urls.push(url);
     else
       pkg.ext.forEach(ext=>urls.push(url+ext));
-    ({response, url: __url} = await fetch_try(mod_log, urls));
+    ({response, url: __url} = await fetch_try(log, urls));
     if (response?.status!=200)
       return response;
     u = url_parse(__url);
-    log('babel loaded module src '+__url);
+    log.l('babel loaded module src '+__url);
     let body = await response.text();
     // console.log(response);
     let opt = {presets: [], plugins: [], sourceMaps: true};
