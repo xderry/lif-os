@@ -40,7 +40,7 @@ let importmap_gen = ()=>{
     imports[e] = p+'/';
     imports[e+'/'] = p+'/';
   });
-  a = qw`components hooks contexts pages utils public`;
+  a = qw`public components hooks contexts pages utils styles`;
   a.forEach(e=>{
     let p = '/.lif/pkgroot/'+e;
     imports[e+'/'] = p+'/';

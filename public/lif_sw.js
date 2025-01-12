@@ -72,13 +72,18 @@ let npm_mem = {};
 let mod_map = {
   'react': {type: 'amd',
     url: 'https://unpkg.com/react@18/umd/react.development.js',
-    exports: qw`__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED
-      createPortal createRoot findDOMNode flushSync hydrate hydrateRoot render
-      unmountComponentAtNode unstable_batchedUpdates
-      unstable_renderSubtreeIntoContainer version`,
+    exports: qw`Children Component Fragment Profiler PureComponent StrictMode
+      Suspense __SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED
+      act cloneElement createContext createElement createFactory createRef
+      forwardRef isValidElement lazy memo startTransition unstable_act
+      useCallback useContext useDebugValue useDeferredValue useEffect useId
+      useImperativeHandle useInsertionEffect useLayoutEffect useMemo useReducer
+      useRef useState useSyncExternalStore useTransition version`,
   },
-  'react/jsx-runtime/': {type: 'cjs',
+  /*
+  'react/jsx-runtime': {type: 'esm',
     url: 'https://unpkg.com/jsx-runtime@1.2.0/index.js'},
+  */
   'react-dom': {type: 'amd',
     url: 'https://unpkg.com/react-dom@18/umd/react-dom.development.js',
     exports: qw`__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED
@@ -263,6 +268,7 @@ let pkg_map = {
   '/hooks/': {path: '/.lif/pkgroot/hooks/', ext: ext_react},
   '/contexts/': {path: '/.lif/pkgroot/contexts/', ext: ext_react},
   '/utils/': {path: '/.lif/pkgroot/utils/', ext: ext_react},
+  '/styles/': {path: '/.lif/pkgroot/styles/', ext: ext_react},
 };
 const pkg_get = path=>{
   let v;
@@ -313,8 +319,9 @@ async function npm_load(log, module){
     let uri;
     if (!(uri = npm_uri_parse(module)))
       throw Error('invalid module name '+module);
-    return npm.cdn+'/'+npm.mod_ver+'/'+
-      (!uri.path || uri.path=='/' ? npm.main : npm.main_dir+uri.path);
+    if (!uri.path || uri.path=='/')
+      return {redirect: npm.cdn+'/'+module+(!uri.path ? '/' : '')+npm.main};
+    return {fetch: npm.cdn+'/'+npm.mod_ver+'/'+uri.path};
   };
   // load package.json to locate module's index.js
   try {
@@ -336,7 +343,6 @@ async function npm_load(log, module){
       npm.main = main.default;
     else
       throw Error('cannot parse main '+JSON.stringify(main)+msg);
-    npm.main_dir = path_dir(npm.main);
     npm.wait.return();
   } catch(error){
     npm.wait.throw(error);
@@ -375,7 +381,10 @@ async function _sw_fetch(event){
     } else {
       // npm module
       let npm = await npm_load(log, module);
-      mod_url = npm.get_path(module);
+      let get = npm.get_path(module);
+      if (get.redirect)
+        return Response.redirect(get.redirect, 302);
+      mod_url = get.fetch;
     }
     if (body===undefined){
       let {response} = await fetch_try(log, mod_url);
