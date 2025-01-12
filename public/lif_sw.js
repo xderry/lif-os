@@ -305,6 +305,30 @@ async function fetch_try(log, urls){
   return {response, url, idx};
 }
 
+let npm_file_lookup = (pkg, file)=>{
+  let v;
+  if (v = pkg.exports?.[file]){
+    if (typeof v=='string')
+      return {file: v};
+    if (typeof v!='object')
+      return {file};
+    // default import require types
+    if (typeof v.import=='string')
+      return {file: v.import, type: 'import'};
+    if (typeof v.default=='string')
+      return {file: v.default, type: 'default'};
+    if (typeof v.require=='string')
+      return {file: v.require, type: 'require'};
+    return {file};
+  }
+  if (file=='.'){
+    if (typeof pkg.module=='string')
+      return {file: pkg.module, type: 'module'};
+    if (typeof pkg.main=='string')
+      return {file: pkg.main, type: 'default'};
+  }
+  return {file};
+};
 async function npm_load(log, module){
   let npm, uri, mod_ver;
   if (!(uri = npm_uri_parse(module)))
@@ -319,9 +343,13 @@ async function npm_load(log, module){
     let uri;
     if (!(uri = npm_uri_parse(module)))
       throw Error('invalid module name '+module);
-    if (!uri.path || uri.path=='/')
-      return {redirect: npm.cdn+'/'+module+(!uri.path ? '/' : '')+npm.main};
-    return {fetch: npm.cdn+'/'+npm.mod_ver+'/'+uri.path};
+    let _file = uri.path.replace(/^\//, '')||'.';
+    let {file, type} = npm_file_lookup(npm.pkg, _file);
+    if (file=='.')
+      throw Error('no module main '+module);
+    if (file!=_file)
+      return {redirect: npm.cdn+'/'+npm.mod_ver+'/'+file, type};
+    return {fetch: npm.cdn+'/'+npm.mod_ver+'/'+file, type};
   };
   // load package.json to locate module's index.js
   try {
@@ -334,6 +362,8 @@ async function npm_load(log, module){
     let pkg = npm.pkg = await response.json();
     if (!pkg)
       throw Error('empty package.json '+msg);
+    if (!pkg.version)
+      throw Error('invalid package.json '+msg);
     let main;
     if (!(main = pkg.module || pkg.exports?.['.'] || pkg.main))
       throw Error('missing module main: '+module+' in '+url);
@@ -359,10 +389,10 @@ async function _sw_fetch(event){
   let external = u.origin!=self.location.origin;
   let log_mod = url+(ref && ref!=u.origin+'/' ? ' ref '+ref : '');
   let path = u.path;
-  let log = function(){ if (!url.includes('search...')) return; console.log(url, ...arguments); };
+  let log = function(){ if (!url.includes('jsx-runtime')) return; console.log(url, ...arguments); };
   log.l = log;
   log.mod = log_mod;
-  log(request.destination, event, log_mod);
+  log.l(request.destination, event, log_mod);
   if (request.method!='GET')
     return fetch(request);
   let v;
