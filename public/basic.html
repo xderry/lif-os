@@ -3,17 +3,11 @@
   <head>
     <meta charset="utf-8">
     <title>SW Babel React App</title>
-    <link rel="stylesheet" href="./esmsh_style.css">
+    <link rel="stylesheet" href="./basic_style.css">
   </head>
   <body>
     <div id="root"></div>
-    <script type=importmap>
-      {"imports": {
-        "react": "/.lif/esm/react",
-        "react/": "/.lif/esm/react/",
-        "react-dom": "/.lif/esm/react-dom"
-      }}
-    </script>
+    <script src=./lif_importmap.js></script>
     <script>
       window.launch_url = "./basic_main.tsx";
     </script>

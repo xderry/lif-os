@@ -206,41 +206,6 @@ const mod_get = path=>{
   return mod;
 };
 
-const mod_to_esm = (module, body)=>{
-  let mod = mod_get(module);
-  let m = mod.m;
-  let mod_json = JSON.stringify(module);
-  let res = '';
-  let exports = '';
-  m?.exports?.forEach(e=>exports += `export const ${e} = mod.exports.${e};\n`);
-  exports += `export default mod.exports;\n`;
-  let lb_header = `
-    let lb = window.lif.boot;
-    let define = function(id, deps, factory){
-      return lb.define_amd(${mod_json}, arguments); };
-    define.amd = {};
-    let require = function(deps, cb){
-      return lb.require_amd(${mod_json}, deps, cb); };
-  `;
-  if (m.type=='global'){
-    res = body+`;
-      export default window.${mod.global};
-    `;
-  } else if (m.type=='amd'){
-    res = lb_header+body;
-    res += `let mod = await lb.module_get(${mod_json});\n`;
-    res += exports;
-  } else if (m.type=='cjs'){
-    let paths = cjs_require_scan(body);
-    res = lb_header;
-    paths.forEach(p=>res += `await require_single(module, ${JSON.stringify(p)});\n`);
-    res += body+';\n'+exports;
-  }
-  if (!res)
-    res = body;
-  return res;
-};
-
 // "const mod = require('module');" -> ["module"]
 let cjs_require_scan = function(js){
   // poor-man's require('module') scanner. in the future use a AST parser
@@ -253,6 +218,63 @@ let cjs_require_scan = function(js){
     paths.push(file);
   });
   return paths;
+};
+
+const mod_to_esm = (module, body)=>{
+  let mod = mod_get(module);
+  let m = mod.m;
+  let mod_json = JSON.stringify(module);
+  let res = '';
+  if (m.type=='global'){
+    res = `
+      (()=>{
+      ${body}
+      }());
+      export default window.${mod.global};
+    `;
+  } else if (m.type=='amd'){
+    let exports = '';
+    m?.exports?.forEach(e=>exports +=
+      `export const ${e} = mod.exports.${e};\n`);
+    exports += `export default mod.exports;\n`;
+    res = `
+      let lb = window.lif.boot;
+      let define = function(id, deps, factory){
+        return lb.define_amd(${mod_json}, arguments); };
+      define.amd = {};
+      let require = function(deps, cb){
+        return lb.require_amd(${mod_json}, deps, cb); };
+      (()=>{
+      ${body}
+      }());
+      let mod = await lb.module_get(${mod_json});
+      ${exports}
+    `;
+  } else if (m.type=='cjs'){
+    let requires = cjs_require_scan(body), _exports = '', _requires = '';
+    m?.exports?.forEach(e=>_exports +=
+      `export const ${e} = module.exports.${e};\n`);
+    _exports += `export default module.exports;\n`;
+    requires.forEach(p=>_requires +=
+      `await require_single(module, ${JSON.stringify(p)});\n`);
+    res = `
+      let lb = window.lif.boot;
+      let module = {exports: {}};
+      let exports = module.exports;
+      let process = {env: {}};
+      let require = function(module){
+        return lb.require_cjs(${mod_json}, module); };
+      ${_requires}
+      (()=>{
+      ${body}
+      }());
+      let mod = await lb.module_get(${mod_json});
+      ${_exports}
+    `;
+  }
+  if (!res)
+    res = body;
+  return res;
 };
 
 let headers = {
@@ -389,10 +411,9 @@ async function _sw_fetch(event){
   let external = u.origin!=self.location.origin;
   let log_mod = url+(ref && ref!=u.origin+'/' ? ' ref '+ref : '');
   let path = u.path;
-  let log = function(){ if (!url.includes('jsx-runtime')) return; console.log(url, ...arguments); };
+  let log = function(){ if (!url.includes('react')) return; console.log(url, ...arguments); };
   log.l = log;
   log.mod = log_mod;
-  log.l(request.destination, event, log_mod);
   if (request.method!='GET')
     return fetch(request);
   let v;

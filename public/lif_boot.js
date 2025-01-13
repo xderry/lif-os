@@ -77,6 +77,14 @@ lif.boot = {
     await m.promise;
     return m.module;
   },
+  require_cjs: function(mod_self, module_id){
+    let m = modules[module_id];
+    if (!m)
+      throw Error('module '+module_id+' not loaded beforehand');
+    if (!m.loaded)
+      throw Error('module '+module_id+' not loaded completion');
+    return m.module;
+  },
   require_single: async function(mod_self, module_id){
     let m = modules[module_id];
     if (m){

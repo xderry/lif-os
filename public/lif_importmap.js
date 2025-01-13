@@ -24,7 +24,8 @@ let importmap_gen = ()=>{
   // core react
   a = [];
   a.push(...qw`react react-dom`);
-  a.push(...qw`frameer-motion motion-dom styled-components stylis
+  a.push(...qw`canvas-confetti
+    frameer-motion motion-dom styled-components stylis
     stylis-rule-sheet @emotion react-is memoize-one prop-types
     merge-anything framer-motion motion-utils tslib shallowequal ini idb
     browserfs`);
