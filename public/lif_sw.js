@@ -367,7 +367,7 @@ let npm_file_lookup = (pkg, file)=>{
       continue;
     }
     if (typeof v.default=='string'){
-      res.push({file: v.default, type: 'default'});
+      res.push({file: v.default, type: 'cjs'});
       continue;
     }
     if (typeof v.require=='string'){
@@ -385,9 +385,9 @@ let npm_file_lookup = (pkg, file)=>{
   }
   if (file=='.'){
     if (typeof pkg.module=='string')
-      return {file: pkg.module, type: 'import'};
+      return {file: pkg.module, type: 'esm'};
     if (typeof pkg.main=='string')
-      return {file: pkg.main, type: 'default'};
+      return {file: pkg.main, type: 'amd'};
   }
   return {};
 };
@@ -494,7 +494,7 @@ async function _sw_fetch(event){
       // npm module
       let npm = await npm_load(log, mod_id);
       let get = npm.file_lookup(mod_id);
-      if (get.redirect)
+      if (0 && get.redirect)
         return Response.redirect(get.url, 302);
       load = {url: get.url, type: get.type};
     }
