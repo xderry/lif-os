@@ -70,6 +70,7 @@ let npm_mem = {};
 
 // see index.html for coresponding import maps
 let mod_map = {
+  /*
   'react': {type: 'amd',
     url: 'https://unpkg.com/react@18/umd/react.development.js',
     exports: qw`Children Component Fragment Profiler PureComponent StrictMode
@@ -84,6 +85,7 @@ let mod_map = {
   'react/jsx-runtime': {type: 'esm',
     url: 'https://unpkg.com/jsx-runtime@1.2.0/index.js'},
   */
+  /*
   'react-dom': {type: 'amd',
     url: 'https://unpkg.com/react-dom@18/umd/react-dom.development.js',
     exports: qw`__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED
@@ -91,6 +93,7 @@ let mod_map = {
       unmountComponentAtNode unstable_batchedUpdates
       unstable_renderSubtreeIntoContainer version`,
   },
+  */
   /*
   'react-dom-global': {type: 'global', global: 'ReactDOM',
     url: 'https://unpkg.com/react-dom@18/umd/react-dom.development.js',
@@ -100,10 +103,12 @@ let mod_map = {
       unstable_renderSubtreeIntoContainer version`,
   },
   */
+  /*
   'canvas-confetti': {type: 'cjs',
     url: 'https://unpkg.com/canvas-confetti@1.9.3/src/confetti.js',
     exports: qw`reset create shapeFromPath shapeFromText`,
   },
+  */
   //'/lif_next_dynamic.js': {body:
   //  'export function dynamic(import_fn){ return import_fn(); }'},
   /*
@@ -220,61 +225,58 @@ let cjs_require_scan = function(js){
   return paths;
 };
 
-const mod_to_esm = (module, body)=>{
-  let mod = mod_get(module);
-  let m = mod.m;
-  let mod_json = JSON.stringify(module);
-  let res = '';
+const mod_to_esm = mod_load=>{
+  let m = mod_load;
+  let _mod_id = JSON.stringify(m.mod_id);
+  let b = '';
   if (m.type=='global'){
-    res = `
+    b = `
       (()=>{
-      ${body}
+      ${m.body}
       }());
-      export default window.${mod.global};
+      export default window.${m.global};
     `;
   } else if (m.type=='amd'){
     let exports = '';
     m?.exports?.forEach(e=>exports +=
       `export const ${e} = mod.exports.${e};\n`);
     exports += `export default mod.exports;\n`;
-    res = `
+    b = `
       let lb = window.lif.boot;
       let define = function(id, deps, factory){
-        return lb.define_amd(${mod_json}, arguments); };
+        return lb.define_amd(${_mod_id}, arguments); };
       define.amd = {};
       let require = function(deps, cb){
-        return lb.require_amd(${mod_json}, deps, cb); };
+        return lb.require_amd(${_mod_id}, deps, cb); };
       (()=>{
-      ${body}
+      ${m.body}
       }());
-      let mod = await lb.module_get(${mod_json});
+      let mod = await lb.module_get(${_mod_id});
       ${exports}
     `;
   } else if (m.type=='cjs'){
-    let requires = cjs_require_scan(body), _exports = '', _requires = '';
+    let requires = cjs_require_scan(m.body), _exports = '', _requires = '';
     m?.exports?.forEach(e=>_exports +=
       `export const ${e} = module.exports.${e};\n`);
     _exports += `export default module.exports;\n`;
     requires.forEach(p=>_requires +=
       `await require_single(module, ${JSON.stringify(p)});\n`);
-    res = `
+    b = `
       let lb = window.lif.boot;
       let module = {exports: {}};
       let exports = module.exports;
       let process = {env: {}};
       let require = function(module){
-        return lb.require_cjs(${mod_json}, module); };
+        return lb.require_cjs(${_mod_id}, module); };
       ${_requires}
       (()=>{
-      ${body}
+      ${m.body}
       }());
-      let mod = await lb.module_get(${mod_json});
+      let mod = await lb.module_get(${_mod_id});
       ${_exports}
     `;
   }
-  if (!res)
-    res = body;
-  return res;
+  return b || m.body;
 };
 
 let headers = {
@@ -327,28 +329,85 @@ async function fetch_try(log, urls){
   return {response, url, idx};
 }
 
-let npm_file_lookup = (pkg, file)=>{
+// TODO support longer matches first /a/b/c matches before /a/b
+let file_match = (file, match)=>{
   let v;
-  if (v = pkg.exports?.[file]){
-    if (typeof v=='string')
-      return {file: v};
+  if (!str_prefix(file, './'))
+    return;
+  if (!(v=str_prefix(file, match)))
+    return;
+  if (v.rest && !path_is_dir(file))
+    return;
+  return true;
+};
+// parse package.exports
+// https://webpack.js.org/guides/package-exports/
+let npm_file_lookup = (pkg, file)=>{
+  let f, v, res = [];
+  let exports = pkg.exports;
+  if (typeof exports=='string')
+    exports = {'.': exports};
+  for (f in exports){
+    v = exports[f];
+    if (f=='./')
+      continue;
+    if (f.includes('*'))
+      throw Error('module '+pkg.name+' match * ('+f+') unsupported');
+    if (!file_match(file, f))
+      continue;
+    if (typeof v=='string'){
+      res.push({file: v});
+      continue;
+    }
     if (typeof v!='object')
-      return {file};
+      continue;
     // default import require types
-    if (typeof v.import=='string')
-      return {file: v.import, type: 'import'};
-    if (typeof v.default=='string')
-      return {file: v.default, type: 'default'};
-    if (typeof v.require=='string')
-      return {file: v.require, type: 'require'};
-    return {file};
+    if (typeof v.import=='string'){
+      res.push({file: v.import, type: 'esm'});
+      continue;
+    }
+    if (typeof v.default=='string'){
+      res.push({file: v.default, type: 'default'});
+      continue;
+    }
+    if (typeof v.require=='string'){
+      res.push({file: v.require, type: 'amd'});
+      continue;
+    }
+  }
+  if (res.length){
+    let best = res[0];
+    res.forEach(r=>{
+      if (r.file.length > best.file.length)
+        best = r;
+    });
+    return best;
   }
   if (file=='.'){
     if (typeof pkg.module=='string')
-      return {file: pkg.module, type: 'module'};
+      return {file: pkg.module, type: 'import'};
     if (typeof pkg.main=='string')
       return {file: pkg.main, type: 'default'};
   }
+  return {};
+};
+let npm_file_revlookup = (pkg, file)=>{
+  let i, v, from;
+  for (i in pkg.exports){
+    if (!(v = pkg.exports[i]))
+      continue;
+    from = 'exports['+i+']';
+    if (v.import==file)
+      return {from: i, type: 'import'};
+    if (v.default==file)
+      return {from: 'exports.'+i, type: 'default'};
+    if (v.require==file)
+      return {from: 'exports.'+i, type: 'require'};
+  }
+  if (typeof pkg.module==file)
+    return {from: 'module', type: 'import'};
+  if (typeof pkg.main==file)
+    return {from: 'main', type: 'default'};
   return {file};
 };
 async function npm_load(log, module){
@@ -361,17 +420,20 @@ async function npm_load(log, module){
     return npm;
   }
   npm = npm_mem[mod_ver] = {module, uri, mod_ver};
-  npm.get_path = module=>{
+  npm.file_lookup = module=>{
     let uri;
     if (!(uri = npm_uri_parse(module)))
       throw Error('invalid module name '+module);
-    let _file = uri.path.replace(/^\//, '')||'.';
-    let {file, type} = npm_file_lookup(npm.pkg, _file);
+    let ofile = uri.path.replace(/^\//, '')||'.';
+    let {file, type} = npm_file_lookup(npm.pkg, ofile);
+    if (!file)
+      throw Error('no module export found for '+module);
     if (file=='.')
       throw Error('no module main '+module);
-    if (file!=_file)
-      return {redirect: npm.cdn+'/'+npm.mod_ver+'/'+file, type};
-    return {fetch: npm.cdn+'/'+npm.mod_ver+'/'+file, type};
+    if (0 && !type)
+      ({type} = npm_file_revlookup(npm.pkg, file));
+    return {nfile: file, type, redirect: file!=ofile, ofile,
+      url: npm.cdn+'/'+npm.mod_ver+'/'+file};
   };
   // load package.json to locate module's index.js
   try {
@@ -424,29 +486,27 @@ async function _sw_fetch(event){
   if (path=='/favicon.ico')
     return await fetch('https://raw.githubusercontent.com/DustinBrett/daedalOS/refs/heads/main/public/favicon.ico');
   if (v=str_prefix(path, '/.lif/esm/')){
-    let module = v.rest, mod, mod_url, body;
-    if (mod = mod_get(module)){
+    let mod_id = v.rest, mod, type, body, load;
+    if (mod = mod_get(mod_id)){
       // static module
-      mod_url = mod.url;
-      body = mod.body;
+      load = {url: mod.url, body: mod.body, type: mod.type};
     } else {
       // npm module
-      let npm = await npm_load(log, module);
-      let get = npm.get_path(module);
+      let npm = await npm_load(log, mod_id);
+      let get = npm.file_lookup(mod_id);
       if (get.redirect)
-        return Response.redirect(get.redirect, 302);
-      mod_url = get.fetch;
+        return Response.redirect(get.url, 302);
+      load = {url: get.url, type: get.type};
     }
-    if (body===undefined){
-      let {response} = await fetch_try(log, mod_url);
-      body = await response.text();
+    if (load.body===undefined){
+      let {response} = await fetch_try(log, load.url);
+      load.body = await response.text();
     }
-    let res = body;
-    if (mod){
-      res = mod_to_esm(module, body);
-      log(`module ${mod.name} loaded ${path} ${mod.url}`);
-    }
-    return new Response(res, {headers: headers.js});
+    let nbody = load.body;
+    if (load.type && load.type!='esm')
+      nbody = mod_to_esm(load);
+    log(`module ${mod_id} loaded ${load.url}`);
+    return new Response(nbody, {headers: headers.js});
   }
   if (u.ext=='.css'){
     let response = await fetch(path);
