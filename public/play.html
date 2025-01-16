@@ -3,11 +3,16 @@
   <head>
     <meta charset="utf-8">
     <title>SW Babel Playground App</title>
-    <link rel="stylesheet" href="./basic_style.css">
+    <link href='https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.16.0/codemirror.css' rel='stylesheet'>
+    <script src='https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.16.0/codemirror.js'></script>
+    <script src='https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.16.0/mode/javascript/javascript.js'></script>
+    <script type="module" src="./play.js"></script>
+    <style>
+    .CodeMirror { height: 100%; }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
-    <script type="module" src="./play.js"></script>
+    <div class="editor"></div>
   </body>
 </html>
 
