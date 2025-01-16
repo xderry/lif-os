@@ -233,7 +233,7 @@ const mod_to_esm = mod_load=>{
     b = `
       (()=>{
       ${m.body}
-      }());
+      })();
       export default window.${m.global};
     `;
   } else if (m.type=='amd'){
@@ -250,7 +250,7 @@ const mod_to_esm = mod_load=>{
         return lb.require_amd(${_mod_id}, deps, cb); };
       (()=>{
       ${m.body}
-      }());
+      })();
       let mod = await lb.module_get(${_mod_id});
       ${exports}
     `;
@@ -271,7 +271,7 @@ const mod_to_esm = mod_load=>{
       ${_requires}
       (()=>{
       ${m.body}
-      }());
+      })();
       let mod = await lb.module_get(${_mod_id});
       ${_exports}
     `;
@@ -489,14 +489,14 @@ async function _sw_fetch(event){
     let mod_id = v.rest, mod, type, body, load;
     if (mod = mod_get(mod_id)){
       // static module
-      load = {url: mod.url, body: mod.body, type: mod.type};
+      load = {url: mod.url, body: mod.body, type: mod.type, mod_id};
     } else {
       // npm module
       let npm = await npm_load(log, mod_id);
       let get = npm.file_lookup(mod_id);
       if (0 && get.redirect)
         return Response.redirect(get.url, 302);
-      load = {url: get.url, type: get.type};
+      load = {url: get.url, type: get.type, mod_id};
     }
     if (load.body===undefined){
       let {response} = await fetch_try(log, load.url);
