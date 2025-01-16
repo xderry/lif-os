@@ -20,17 +20,18 @@ let res = await fetch(url);
 let src = await res.text();
 let p = parser.parse(src);
 let b = p.program.body;
+let exports = [];
 traverse(p, {
   AssignmentExpression: function(path){
     let n = path.node, l = n.left, r = n.right;
-    if (!(n.operator=='=' &&
+    if (n.operator=='=' &&
       l.type=='MemberExpression' &&
       l.object.name=='exports' && l.object.type=='Identifier' &&
-      l.property?.type=='Identifier'))
+      l.property.type=='Identifier')
     {
-      return;
+      exports.push(l.property.name);
+      console.log(l.property.name);
     }
-    console.log(l.property.name);
   },
 });
 

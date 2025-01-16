@@ -2,6 +2,7 @@
 
 /*global Babel*/
 importScripts('https://unpkg.com/@babel/standalone@7.26.4/babel.js');
+let Babel = self.Babel;
 // this is needed to activate the worker immediately without reload
 // @see https://developers.google.com/web/fundamentals/primers/service-workers/lifecycle#clientsclaim
 self.addEventListener('activate', event=>event.waitUntil(clients.claim()));
@@ -230,17 +231,34 @@ const mod_to_esm = mod_load=>{
   let _mod_id = JSON.stringify(m.mod_id);
   let b = '';
   if (m.type=='global'){
-    b = `
+    return `
       (()=>{
       ${m.body}
       })();
       export default window.${m.global};
     `;
-  } else if (m.type=='amd'){
-    let exports = '';
-    m?.exports?.forEach(e=>exports +=
+  }
+  let parser = Babel.packages.parser;
+  let traverse = Babel.packages.traverse.default;
+  let p = parser.parse(m.body);
+  let exports = [];
+  traverse(p, {
+    AssignmentExpression: function(path){
+      let n = path.node, l = n.left, r = n.right;
+      if (n.operator=='=' &&
+        l.type=='MemberExpression' &&
+        l.object.name=='exports' && l.object.type=='Identifier' &&
+        l.property.type=='Identifier')
+      {
+        exports.push(l.property.name);
+      }
+    },
+  });
+  if (m.type=='amd'){
+    let _exports = '';
+    exports.forEach(e=>_exports +=
       `export const ${e} = mod.exports.${e};\n`);
-    exports += `export default mod.exports;\n`;
+    _exports += `export default mod.exports;\n`;
     b = `
       let lb = window.lif.boot;
       let define = function(id, deps, factory){
@@ -252,11 +270,11 @@ const mod_to_esm = mod_load=>{
       ${m.body}
       })();
       let mod = await lb.module_get(${_mod_id});
-      ${exports}
+      ${_exports}
     `;
   } else if (m.type=='cjs'){
     let requires = cjs_require_scan(m.body), _exports = '', _requires = '';
-    m?.exports?.forEach(e=>_exports +=
+    exports.forEach(e=>_exports +=
       `export const ${e} = module.exports.${e};\n`);
     _exports += `export default module.exports;\n`;
     requires.forEach(p=>_requires +=
@@ -391,25 +409,6 @@ let npm_file_lookup = (pkg, file)=>{
   }
   return {};
 };
-let npm_file_revlookup = (pkg, file)=>{
-  let i, v, from;
-  for (i in pkg.exports){
-    if (!(v = pkg.exports[i]))
-      continue;
-    from = 'exports['+i+']';
-    if (v.import==file)
-      return {from: i, type: 'import'};
-    if (v.default==file)
-      return {from: 'exports.'+i, type: 'default'};
-    if (v.require==file)
-      return {from: 'exports.'+i, type: 'require'};
-  }
-  if (typeof pkg.module==file)
-    return {from: 'module', type: 'import'};
-  if (typeof pkg.main==file)
-    return {from: 'main', type: 'default'};
-  return {file};
-};
 async function npm_load(log, module){
   let npm, uri, mod_ver;
   if (!(uri = npm_uri_parse(module)))
@@ -430,8 +429,6 @@ async function npm_load(log, module){
       throw Error('no module export found for '+module);
     if (file=='.')
       throw Error('no module main '+module);
-    if (0 && !type)
-      ({type} = npm_file_revlookup(npm.pkg, file));
     return {nfile: file, type, redirect: file!=ofile, ofile,
       url: npm.cdn+'/'+npm.mod_ver+'/'+file};
   };
