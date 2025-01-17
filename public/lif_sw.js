@@ -69,7 +69,7 @@ const npm_uri_parse = path=>{
   return !m ? null : {name: m[1]|| '', version: m[2]|| '', path: m[3]||''};
 };
 let npm_cdn = ['https://unpkg.com'];
-let npm_mem = {};
+let npm_pkg = {};
 
 // see index.html for coresponding import maps
 let npm_map = {
@@ -410,16 +410,16 @@ let npm_file_lookup = (pkg, file)=>{
   }
   return {};
 };
-async function npm_load(log, module){
+async function npm_pkg_load(log, module){
   let npm, uri, mod_ver;
   if (!(uri = npm_uri_parse(module)))
     throw Error('invalid module name '+module);
   mod_ver = uri.name+uri.version;
-  if (npm = npm_mem[mod_ver]){
+  if (npm = npm_pkg[mod_ver]){
     await npm.wait;
     return npm;
   }
-  npm = npm_mem[mod_ver] = {module, uri, mod_ver};
+  npm = npm_pkg[mod_ver] = {module, uri, mod_ver};
   npm.file_lookup = module=>{
     let uri;
     if (!(uri = npm_uri_parse(module)))
@@ -485,14 +485,16 @@ async function _sw_fetch(event){
     return await fetch('https://raw.githubusercontent.com/DustinBrett/daedalOS/refs/heads/main/public/favicon.ico');
   if (v=str_prefix(path, '/.lif/npm.cjs/')){
   }
-  if (v=str_prefix(path, '/.lif/npm/')){
+  if ((v=str_prefix(path, '/.lif/npm/')) ||
+    (v=str_prefix(path, '/.lif/npm.cjs/')))
+  {
     let npm_id = v.rest, load, type, body;
     if (load = npm_load_static(npm_id)){
       // static module
       load = {url: load.url, body: load.body, type: load.type, npm_id};
     } else {
       // npm module
-      let npm = await npm_load(log, npm_id);
+      let npm = await npm_pkg_load(log, npm_id);
       let get = npm.file_lookup(npm_id);
       load = {url: get.url, type: get.type, npm_id};
     }
