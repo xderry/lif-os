@@ -72,7 +72,7 @@ let npm_cdn = ['https://unpkg.com'];
 let npm_pkg = {};
 
 // see index.html for coresponding import maps
-let npm_map = {
+let npm_static = {
   /*
   'react': {type: 'amd',
     url: 'https://unpkg.com/react@18/umd/react.development.js',
@@ -170,7 +170,7 @@ let npm_map = {
   'zlib': {node: 'browserify-zlib/lib/index.js'},
   '_process': {node: 'process/browser.js'},
 };
-for (const [name, m] of OF(npm_map)){
+for (const [name, m] of OF(npm_static)){
   m.is_dir = path_is_dir(name);
   if (m.node){
     m.type = 'cjs';
@@ -191,8 +191,8 @@ for (const [name, m] of OF(npm_map)){
 
 const npm_load_static = path=>{
   let mod, m, v, prefix;
-  for (let name in npm_map){
-    m = npm_map[name];
+  for (let name in npm_static){
+    m = npm_static[name];
     if (name==path || name+'/'==path){ // /react -> /react/
       mod = {m, name, rest: ''};
       break;
@@ -419,7 +419,7 @@ async function npm_pkg_load(log, module){
     await npm.wait;
     return npm;
   }
-  npm = npm_pkg[mod_ver] = {module, uri, mod_ver};
+  npm = npm_pkg[mod_ver] = {module, uri, mod_ver, wait: xpromise()};
   npm.file_lookup = module=>{
     let uri;
     if (!(uri = npm_uri_parse(module)))
@@ -436,7 +436,6 @@ async function npm_pkg_load(log, module){
   // load package.json to locate module's index.js
   try {
     let urls = [];
-    npm.wait = xpromise();
     npm_cdn.forEach(cdn=>urls.push(cdn+'/'+npm.mod_ver+'/package.json'));
     let {response, url, idx} = await fetch_try(log, urls);
     let msg = ' in '+module+' '+url;
