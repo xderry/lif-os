@@ -37,7 +37,7 @@ let importmap_gen = ()=>{
     _stream_writable string_decoder sys timers tls tty url util vm zlib
     _process`);
   a.forEach(e=>{
-    let p = '/.lif/esm/'+e;
+    let p = '/.lif/npm/'+e;
     imports[e] = p+'/';
     imports[e+'/'] = p+'/';
   });

@@ -303,7 +303,6 @@ let headers = {
 };
 
 let ext_react = ['.ts', '.tsx', '/index.ts', '/index.tsx'];
-let ext_esm = ['/index.mjs'];
 let pkg_map = {
   '/pages/': {path: '/.lif/pkgroot/pages/'},
   '/components/': {path: '/.lif/pkgroot/components/', ext: ext_react},
@@ -482,7 +481,7 @@ async function _sw_fetch(event){
     return fetch(request);
   if (path=='/favicon.ico')
     return await fetch('https://raw.githubusercontent.com/DustinBrett/daedalOS/refs/heads/main/public/favicon.ico');
-  if (v=str_prefix(path, '/.lif/esm/')){
+  if (v=str_prefix(path, '/.lif/npm/')){
     let mod_id = v.rest, mod, type, body, load;
     if (mod = mod_get(mod_id)){
       // static module
