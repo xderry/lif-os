@@ -4,11 +4,13 @@ let modules = {};
 let lb;
 // Promise with return() and throw()
 let xpromise = ()=>{
-  let _resolve, _reject;
+  let _return, _throw;
   let promise = new Promise((resolve, reject)=>{
-    _resolve = resolve; _reject = reject;});
-  promise.return = _resolve;
-  promise.throw = _reject;
+    _return = ret=>{ resolve(ret); return ret; };
+    _throw = err=>{ reject(err); return err; };
+  });
+  promise.return = _return;
+  promise.throw = _throw;
   return promise;
 };
 
