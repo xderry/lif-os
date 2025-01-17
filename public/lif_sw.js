@@ -229,9 +229,17 @@ let cjs_require_scan = function(js){
   return paths;
 };
 
+// require("file.js") -> (await require("file.js"))
+let cjs_require_tr_await = function(js){
+  // poor-man's require('module') scanner. in the future use a AST parser
+  return js.replace(/\brequire\s*\(\s*(['"])([^'"\\]+)(['"])\s*\)/g,
+    (match, q1, file, q2)=>
+    `(await lb.require_single(module, ${q1}${file}${q2}))`);
+};
+
 const mod_to_esm = mod_load=>{
   let m = mod_load;
-  let _mod_id = JSON.stringify(m.npm_id);
+  let _mod_id = JSON.stringify(m.npm_uri);
   let b = '';
   if (m.type=='global'){
     return `
@@ -241,9 +249,26 @@ const mod_to_esm = mod_load=>{
       export default window.${m.global};
     `;
   }
+  if (m.cjs){
+    if (!m.requires)
+      m.requires = cjs_require_scan(m.body);
+    if (!m.body_cjs)
+      m.body_cjs = cjs_require_tr_await(m.body);
+    return `
+      let lb = window.lif.boot;
+      let module = {exports: {}};
+      let exports = module.exports;
+      let process = {env: {}};
+      let require = module=>lb.require_cjs(${_mod_id}, module);
+      (()=>{
+      ${m.body_cjs}
+      })();
+      export default module.exports;
+    `;
+  }
   let parser = Babel.packages.parser;
   let traverse = Babel.packages.traverse.default;
-  let p = parser.parse(m.body);
+  let p = parser.parse(m.body, {sourceType: 'script'});
   let exports = [];
   traverse(p, {
     AssignmentExpression: function(path){
@@ -473,6 +498,19 @@ async function npm_pkg_load(log, npm_uri){
   return await npm.wait;
 }
 
+async function npm_fetch_file(log, npm_uri){
+  log('npm_fetch_file');
+  let load, type, body;
+  let npm = await npm_pkg_load(log, npm_uri);
+  let get = npm.file_lookup(npm_uri);
+  load = {url: get.url, type: get.type, npm_uri};
+  if (load.body===undefined){
+    let {response} = await fetch_try(log, load.url);
+    load.body = await response.text();
+  }
+  return load;
+}
+ 
 async function _sw_fetch(event){
   let {request, request: {url}} = event;
   let u = url_parse(url);
@@ -485,7 +523,7 @@ async function _sw_fetch(event){
   log.mod = log_mod;
   if (request.method!='GET')
     return fetch(request);
-  let v;
+  let v, cjs;
   log('Req '+url);
   let pkg = pkg_get(path);
   if (external)
@@ -494,23 +532,23 @@ async function _sw_fetch(event){
     return await fetch('https://raw.githubusercontent.com/DustinBrett/daedalOS/refs/heads/main/public/favicon.ico');
   if (v=str_prefix(path, '/.lif/npm.cjs/')){
   }
-  if ((v=str_prefix(path, '/.lif/npm/')) ||
-    (v=str_prefix(path, '/.lif/npm.cjs/')))
-  {
+  if (v=str_prefix(path, '/.lif/npm/')){
     log('npm');
-    let npm_uri = v.rest, load, type, body;
-    let npm = await npm_pkg_load(log, npm_uri);
-    let get = npm.file_lookup(npm_uri);
-    load = {url: get.url, type: get.type, npm_uri};
-    if (load.body===undefined){
-      let {response} = await fetch_try(log, load.url);
-      load.body = await response.text();
-    }
-    let nbody = load.body;
+    let npm_uri = v.rest;
+    let load = await npm_fetch_file(log, npm_uri);
     if (load.type && load.type!='esm')
-      nbody = mod_to_esm(load);
+      load.body = mod_to_esm(load);
     log(`module ${npm_uri} loaded ${load.url}`);
-    return new Response(nbody, {headers: headers.js});
+    return new Response(load.body, {headers: headers.js});
+  }
+  if (v=str_prefix(path, '/.lif/npm.cjs/')){
+    log('npm.cjs');
+    let npm_uri = v.rest;
+    let load = await npm_fetch_file(log, npm_uri);
+    load.cjs = true;
+    load.body = mod_to_esm(load);
+    log(`module ${npm_uri} loaded ${load.url}`);
+    return new Response(load.body, {headers: headers.js});
   }
   if (u.ext=='.css'){
     let response = await fetch(path);
