@@ -410,35 +410,48 @@ let npm_file_lookup = (pkg, file)=>{
   }
   return {};
 };
-async function npm_pkg_load(log, module){
-  let npm, uri, mod_ver;
-  if (!(uri = npm_uri_parse(module)))
-    throw Error('invalid module name '+module);
+async function npm_pkg_load(log, npm_uri){
+  let npm, uri, mod_ver, load;
+  if (!(uri = npm_uri_parse(npm_uri)))
+    throw Error('invalid module name '+npm_uri);
   mod_ver = uri.name+uri.version;
   if (npm = npm_pkg[mod_ver]){
     await npm.wait;
     return npm;
   }
-  npm = npm_pkg[mod_ver] = {module, uri, mod_ver, wait: xpromise()};
-  npm.file_lookup = module=>{
+  npm = npm_pkg[mod_ver] = {npm_uri, uri, mod_ver, wait: xpromise()};
+  npm.file_lookup = npm_uri=>{
     let uri;
-    if (!(uri = npm_uri_parse(module)))
-      throw Error('invalid module name '+module);
+    if (!(uri = npm_uri_parse(npm_uri)))
+      throw Error('invalid module name '+npm_uri);
     let ofile = uri.path.replace(/^\//, '')||'.';
     let {file, type} = npm_file_lookup(npm.pkg, ofile);
     if (!file)
-      throw Error('no module export found for '+module);
+      throw Error('no module export found for '+npm_uri);
     if (file=='.')
-      throw Error('no module main '+module);
+      throw Error('no module main '+npm_uri);
     return {nfile: file, type, redirect: file!=ofile, ofile,
       url: npm.cdn+'/'+npm.mod_ver+'/'+file};
   };
+  if ((load = npm_load_static(mod_ver)) || (load = npm_load_static(npm_uri))){
+    npm.static = load;
+    npm.pkg = load.pkg;
+    npm.body = load.body;
+    npm.type = load.type;
+    npm.url = load.url;
+    if (npm.body===undefined){
+      let {response} = await fetch_try(log, npm.url);
+      npm.body = await response.text();
+    }
+    npm.wait.return();
+    return npm;
+  }
   // load package.json to locate module's index.js
   try {
     let urls = [];
     npm_cdn.forEach(cdn=>urls.push(cdn+'/'+npm.mod_ver+'/package.json'));
     let {response, url, idx} = await fetch_try(log, urls);
-    let msg = ' in '+module+' '+url;
+    let msg = ' in '+npm_uri+' '+url;
     npm.cdn = npm_cdn[idx];
     let pkg = npm.pkg = await response.json();
     if (!pkg)
@@ -447,7 +460,7 @@ async function npm_pkg_load(log, module){
       throw Error('invalid package.json '+msg);
     let main;
     if (!(main = pkg.module || pkg.exports?.['.'] || pkg.main))
-      throw Error('missing module main: '+module+' in '+url);
+      throw Error('missing module main: '+npm_uri+' in '+url);
     if (typeof main=='string')
       npm.main = main;
     else if (main.default)
@@ -487,15 +500,15 @@ async function _sw_fetch(event){
   if ((v=str_prefix(path, '/.lif/npm/')) ||
     (v=str_prefix(path, '/.lif/npm.cjs/')))
   {
-    let npm_id = v.rest, load, type, body;
-    if (load = npm_load_static(npm_id)){
+    let npm_uri = v.rest, load, type, body;
+    if (load = npm_load_static(npm_uri)){
       // static module
-      load = {url: load.url, body: load.body, type: load.type, npm_id};
+      load = {url: load.url, body: load.body, type: load.type, npm_uri};
     } else {
       // npm module
-      let npm = await npm_pkg_load(log, npm_id);
-      let get = npm.file_lookup(npm_id);
-      load = {url: get.url, type: get.type, npm_id};
+      let npm = await npm_pkg_load(log, npm_uri);
+      let get = npm.file_lookup(npm_uri);
+      load = {url: get.url, type: get.type, npm_uri};
     }
     if (load.body===undefined){
       let {response} = await fetch_try(log, load.url);
@@ -504,7 +517,7 @@ async function _sw_fetch(event){
     let nbody = load.body;
     if (load.type && load.type!='esm')
       nbody = mod_to_esm(load);
-    log(`module ${npm_id} loaded ${load.url}`);
+    log(`module ${npm_uri} loaded ${load.url}`);
     return new Response(nbody, {headers: headers.js});
   }
   if (u.ext=='.css'){
