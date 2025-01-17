@@ -9,14 +9,15 @@ self.addEventListener('activate', event=>event.waitUntil(clients.claim()));
 
 // Promise with return() and throw()
 let xpromise = ()=>{
-  let _resolve, _reject;
+  let _return, _throw;
   let promise = new Promise((resolve, reject)=>{
-    _resolve = resolve; _reject = reject;});
-  promise.return = _resolve;
-  promise.throw = _reject;
+    _return = ret=>{ resolve(ret); return ret; };
+    _throw = err=>{ reject(err); return err; };
+  });
+  promise.return = _return;
+  promise.throw = _throw;
   return promise;
 };
-
 // string.js
 const string = {};
 string.split_ws = s=>s.split(/\s+/).filter(s=>s);
@@ -415,10 +416,8 @@ async function npm_pkg_load(log, npm_uri){
   if (!(uri = npm_uri_parse(npm_uri)))
     throw Error('invalid module name '+npm_uri);
   mod_ver = uri.name+uri.version;
-  if (npm = npm_pkg[mod_ver]){
-    await npm.wait;
-    return npm;
-  }
+  if (npm = npm_pkg[mod_ver])
+    return await npm.wait;
   npm = npm_pkg[mod_ver] = {npm_uri, uri, mod_ver, wait: xpromise()};
   npm.file_lookup = npm_uri=>{
     let uri;
@@ -443,8 +442,7 @@ async function npm_pkg_load(log, npm_uri){
       let {response} = await fetch_try(log, npm.url);
       npm.body = await response.text();
     }
-    npm.wait.return();
-    return npm;
+    return npm.wait.return(npm);
   }
   // load package.json to locate module's index.js
   try {
@@ -467,13 +465,12 @@ async function npm_pkg_load(log, npm_uri){
       npm.main = main.default;
     else
       throw Error('cannot parse main '+JSON.stringify(main)+msg);
-    npm.wait.return();
-  } catch(error){
-    npm.wait.throw(error);
-    throw(error);
+    npm.wait.return(npm);
+  } catch(err){
+    npm.wait.throw(err);
+    throw(err);
   }
-  await npm.wait;
-  return npm;
+  return await npm.wait;
 }
 
 async function _sw_fetch(event){
@@ -483,7 +480,7 @@ async function _sw_fetch(event){
   let external = u.origin!=self.location.origin;
   let log_mod = url+(ref && ref!=u.origin+'/' ? ' ref '+ref : '');
   let path = u.path;
-  let log = function(){ if (!url.includes('react')) return; console.log(url, ...arguments); };
+  let log = function(){ if (!url.includes('')) return; console.log(url, ...arguments); };
   log.l = log;
   log.mod = log_mod;
   if (request.method!='GET')
@@ -500,16 +497,11 @@ async function _sw_fetch(event){
   if ((v=str_prefix(path, '/.lif/npm/')) ||
     (v=str_prefix(path, '/.lif/npm.cjs/')))
   {
+    log('npm');
     let npm_uri = v.rest, load, type, body;
-    if (load = npm_load_static(npm_uri)){
-      // static module
-      load = {url: load.url, body: load.body, type: load.type, npm_uri};
-    } else {
-      // npm module
-      let npm = await npm_pkg_load(log, npm_uri);
-      let get = npm.file_lookup(npm_uri);
-      load = {url: get.url, type: get.type, npm_uri};
-    }
+    let npm = await npm_pkg_load(log, npm_uri);
+    let get = npm.file_lookup(npm_uri);
+    load = {url: get.url, type: get.type, npm_uri};
     if (load.body===undefined){
       let {response} = await fetch_try(log, load.url);
       load.body = await response.text();

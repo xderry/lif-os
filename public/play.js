@@ -34,4 +34,21 @@ traverse(p, {
     }
   },
 });
+let xpromise = ()=>{
+  let _return, _throw;
+  let promise = new Promise((resolve, reject)=>{
+    _return = ret=>{ resolve(ret); return ret; };
+    _throw = err=>{ reject(err); return err; };
+  });
+  promise.return = _return;
+  promise.throw = _throw;
+  return promise;
+};
+let pp = xpromise();
+setTimeout(()=>pp.return(42), 1000);
+console.log('waiitng');
+let ret = await pp;
+console.log('ret', ret);
+ret = await pp;
+console.log('ret', ret);
 
