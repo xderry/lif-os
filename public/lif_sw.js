@@ -34,11 +34,13 @@ string.es6_str = args=>{
 string.qw = function(s){
   return string.split_ws(!Array.isArray(s) ? s : string.es6_str(arguments)); };
 const qw = string.qw;
-
 const str_prefix = (url, prefix)=>{
   if (url.startsWith(prefix))
     return {prefix: prefix, rest: url.substr(prefix.length)};
 };
+// util
+let OF = Object.entries;
+
 const path_ext = path=>path.match(/\.[^./]*$/)?.[0];
 const path_file = path=>path.match(/(^|\/)?([^/]*)$/)?.[2];
 const path_dir = path=>path.slice(0, path.length-path_file(path).length);
@@ -70,7 +72,7 @@ let npm_cdn = ['https://unpkg.com'];
 let npm_mem = {};
 
 // see index.html for coresponding import maps
-let mod_map = {
+let npm_map = {
   /*
   'react': {type: 'amd',
     url: 'https://unpkg.com/react@18/umd/react.development.js',
@@ -168,7 +170,7 @@ let mod_map = {
   'zlib': {node: 'browserify-zlib/lib/index.js'},
   '_process': {node: 'process/browser.js'},
 };
-for (const [name, m] of Object.entries(mod_map)){
+for (const [name, m] of OF(npm_map)){
   m.is_dir = path_is_dir(name);
   if (m.node){
     m.type = 'cjs';
@@ -187,10 +189,10 @@ for (const [name, m] of Object.entries(mod_map)){
     m.type = 'body';
 }
 
-const mod_get = path=>{
+const npm_load_static = path=>{
   let mod, m, v, prefix;
-  for (let name in mod_map){
-    m = mod_map[name];
+  for (let name in npm_map){
+    m = npm_map[name];
     if (name==path || name+'/'==path){ // /react -> /react/
       mod = {m, name, rest: ''};
       break;
@@ -228,7 +230,7 @@ let cjs_require_scan = function(js){
 
 const mod_to_esm = mod_load=>{
   let m = mod_load;
-  let _mod_id = JSON.stringify(m.mod_id);
+  let _mod_id = JSON.stringify(m.npm_id);
   let b = '';
   if (m.type=='global'){
     return `
@@ -481,18 +483,18 @@ async function _sw_fetch(event){
     return fetch(request);
   if (path=='/favicon.ico')
     return await fetch('https://raw.githubusercontent.com/DustinBrett/daedalOS/refs/heads/main/public/favicon.ico');
+  if (v=str_prefix(path, '/.lif/npm.cjs/')){
+  }
   if (v=str_prefix(path, '/.lif/npm/')){
-    let mod_id = v.rest, mod, type, body, load;
-    if (mod = mod_get(mod_id)){
+    let npm_id = v.rest, load, type, body;
+    if (load = npm_load_static(npm_id)){
       // static module
-      load = {url: mod.url, body: mod.body, type: mod.type, mod_id};
+      load = {url: load.url, body: load.body, type: load.type, npm_id};
     } else {
       // npm module
-      let npm = await npm_load(log, mod_id);
-      let get = npm.file_lookup(mod_id);
-      if (0 && get.redirect)
-        return Response.redirect(get.url, 302);
-      load = {url: get.url, type: get.type, mod_id};
+      let npm = await npm_load(log, npm_id);
+      let get = npm.file_lookup(npm_id);
+      load = {url: get.url, type: get.type, npm_id};
     }
     if (load.body===undefined){
       let {response} = await fetch_try(log, load.url);
@@ -501,7 +503,7 @@ async function _sw_fetch(event){
     let nbody = load.body;
     if (load.type && load.type!='esm')
       nbody = mod_to_esm(load);
-    log(`module ${mod_id} loaded ${load.url}`);
+    log(`module ${npm_id} loaded ${load.url}`);
     return new Response(nbody, {headers: headers.js});
   }
   if (u.ext=='.css'){
