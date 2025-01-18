@@ -66,10 +66,6 @@ class postmessage_chan {
   }
   on_msg(event){
     let msg = event.data;
-    if (msg.init=='init'){
-      this.chan = event.ports[0];
-      return true;
-    }
     if (!this.chan)
       throw Error('chan not init');
     if (msg.cmd)
@@ -87,10 +83,16 @@ class postmessage_chan {
     this.cmd_cb[cmd] = cb;
   }
   // controller = navigator.serviceWorker.controller
-  init_client(controller){
+  connect(controller){
     this.chan = new MessageChannel();
-    controller.postMessage({init: 'init'}, [this.chan.port2]);
+    controller.postMessage({connect: true}, [this.chan.port2]);
     this.chan.port1.onmessage = event=>this.on_msg(event);
+  }
+  listen(event){
+    if (event.data?.connect){
+      this.chan = event.ports[0];
+      return true;
+    }
   }
 }
 
@@ -577,7 +579,7 @@ async function _sw_fetch(event){
     return await fetch('https://raw.githubusercontent.com/DustinBrett/daedalOS/refs/heads/main/public/favicon.ico');
   if (v=str_prefix(path, '/.lif/npm/')){
     log('npm');
-    let uri = v.rest;
+    let uri = v.rest, body;
     let f = await npm_file_load(log, uri);
     if (f.type=='global')
       body = file_body_global(f);
@@ -667,11 +669,11 @@ async function sw_fetch(event){
 
 function sw_init(){
   let count = 0;
+  app_chan = new postmessage_chan();
   self.addEventListener("message", event=>{
-    console.log('sw msg', msg);
+    console.log('sw msg', event.data);
     if (app_chan.listen(event))
-      console.log('sw msg handled', msg.id);
-    return;
+      return;
   });
   self.addEventListener('fetch', event=>{
     try {

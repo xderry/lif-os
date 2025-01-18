@@ -16,32 +16,28 @@ let xpromise = ()=>{
 // chan.js
 class postmessage_chan {
   req = {};
-  cmd = {};
+  cmd_cb = {};
   chan = null;
   async cmd(cmd, req){
     let id = ''+(id++);
     let cq = this.req[id] = xpromise();
-    chan.postMessage({cmd: cmd, req: req, id: id});
+    this.chan.postMessage({cmd, req, id});
     return await cq;
   }
   async cmd_server_cb(msg){
-    let cmd_cb = this.cmd[msg.cmd];
+    let cmd_cb = this.cmd_cb[msg.cmd];
     if (!cmd_cb)
       throw Error('invalid cmd', msg.cmd);
     try {
       let res = await cmd_cb({chan: this, cmd: msg.cmd, arg: msg.arg});
-      chan.postMessage({cmd_res: msg.cmd, id_res: msg.id, res});
+      this.chan.postMessage({cmd_res: msg.cmd, id_res: msg.id, res});
     } catch(err){
-      chan.postMessage({cmd_res: msg.cmd, id_res: msg.id, err: ''+err});
+      this.chan.postMessage({cmd_res: msg.cmd, id_res: msg.id, err: ''+err});
       throw err;
     }
   }
   on_msg(event){
     let msg = event.data;
-    if (msg.init=='init'){
-      this.chan = event.ports[0];
-      return true;
-    }
     if (!this.chan)
       throw Error('chan not init');
     if (msg.cmd)
@@ -56,13 +52,19 @@ class postmessage_chan {
     return true;
   }
   init_server_cmd(cmd, cb){
-    this.cmd[cmd] = cb;
+    this.cmd_cb[cmd] = cb;
   }
   // controller = navigator.serviceWorker.controller
-  init_client(controller){
+  connect(controller){
     this.chan = new MessageChannel();
-    controller.postMessage({init: 'init'}, [this.chan.port2]);
+    controller.postMessage({connect: true}, [this.chan.port2]);
     this.chan.port1.onmessage = event=>this.on_msg(event);
+  }
+  listen(event){
+    if (event.data?.connect){
+      this.chan = event.ports[0];
+      return true;
+    }
   }
 }
 let sw_chan;
@@ -188,11 +190,9 @@ let lif_boot_start = async()=>{
     await navigator.serviceWorker.ready;
     const launch = async()=>{
       sw_chan = new postmessage_chan();
-      sw_chan.init_client(navigator.serviceWorker.controller);
-      sw_chan.init_server_cmd('import', async(req)=>{
-        let ret = await import_do({url: req.url, opt: {exports: true}});
-        return ret;
-      });
+      sw_chan.connect(navigator.serviceWorker.controller);
+      sw_chan.init_server_cmd('import', async(req)=>
+        await import_do({url: req.url, opt: {exports: true}}));
       let url = window.launch_url || './pages/index.tsx';
       try {
         await import(url);
