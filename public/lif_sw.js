@@ -39,9 +39,62 @@ const str_prefix = (url, prefix)=>{
   if (url.startsWith(prefix))
     return {prefix: prefix, rest: url.substr(prefix.length)};
 };
-// util
+// shortcuts
 let OF = Object.entries;
+// chan.js
+class postmessage_chan {
+  req = {};
+  cmd_cb = {};
+  chan = null;
+  async cmd(cmd, req){
+    let id = ''+(id++);
+    let cq = this.req[id] = xpromise();
+    this.chan.postMessage({cmd, req, id});
+    return await cq;
+  }
+  async cmd_server_cb(msg){
+    let cmd_cb = this.cmd_cb[msg.cmd];
+    if (!cmd_cb)
+      throw Error('invalid cmd', msg.cmd);
+    try {
+      let res = await cmd_cb({chan: this, cmd: msg.cmd, arg: msg.arg});
+      this.chan.postMessage({cmd_res: msg.cmd, id_res: msg.id, res});
+    } catch(err){
+      this.chan.postMessage({cmd_res: msg.cmd, id_res: msg.id, err: ''+err});
+      throw err;
+    }
+  }
+  on_msg(event){
+    let msg = event.data;
+    if (msg.init=='init'){
+      this.chan = event.ports[0];
+      return true;
+    }
+    if (!this.chan)
+      throw Error('chan not init');
+    if (msg.cmd)
+      return this.cmd_server_cb(msg);
+    if (msg.id){
+      if (!this.req[msg.id])
+        throw Error('invalid char msg.id', msg.id);
+      let cb = this.req[msg.id];
+      delete this.req[msg.id];
+      cb.return(msg.res);
+    }
+    return true;
+  }
+  init_server_cmd(cmd, cb){
+    this.cmd_cb[cmd] = cb;
+  }
+  // controller = navigator.serviceWorker.controller
+  init_client(controller){
+    this.chan = new MessageChannel();
+    controller.postMessage({init: 'init'}, [this.chan.port2]);
+    this.chan.port1.onmessage = event=>this.on_msg(event);
+  }
+}
 
+// path.js
 const path_ext = path=>path.match(/\.[^./]*$/)?.[0];
 const path_file = path=>path.match(/(^|\/)?([^/]*)$/)?.[2];
 const path_dir = path=>path.slice(0, path.length-path_file(path).length);
@@ -71,6 +124,7 @@ const npm_uri_parse = path=>{
 };
 let npm_cdn = ['https://unpkg.com'];
 let npm_pkg = {};
+let npm_file = {};
 
 // see index.html for coresponding import maps
 let npm_static = {
@@ -99,15 +153,6 @@ let npm_static = {
   },
   */
   /*
-  'react-dom-global': {type: 'global', global: 'ReactDOM',
-    url: 'https://unpkg.com/react-dom@18/umd/react-dom.development.js',
-    exports: qw`__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED
-      createPortal createRoot findDOMNode flushSync hydrate hydrateRoot render
-      unmountComponentAtNode unstable_batchedUpdates
-      unstable_renderSubtreeIntoContainer version`,
-  },
-  */
-  /*
   'canvas-confetti': {type: 'cjs',
     url: 'https://unpkg.com/canvas-confetti@1.9.3/src/confetti.js',
     exports: qw`reset create shapeFromPath shapeFromText`,
@@ -115,14 +160,6 @@ let npm_static = {
   */
   //'/lif_next_dynamic.js': {body:
   //  'export function dynamic(import_fn){ return import_fn(); }'},
-  /*
-  'framer-motion/': {type: 'esm',
-    url: 'https://unpkg.com/framer-motion@11.11.17/dist/es/index.mjs'},
-  'styled-components': {type: 'esm',
-    url: 'https://unpkg.com/styled-components@4.3.2/dist/styled-components.esm.js'},
-  'stylis/stylis.min': {type: 'esm',
-    url: 'https://unpkg.com/stylis@4.3.4/index.js'},
-  */
 
   // browserify dummy nodes:
   'object.assign': {body:
@@ -237,40 +274,14 @@ let cjs_require_tr_await = function(js){
     `(await lb.require_single(module, ${q1}${file}${q2}))`);
 };
 
-const mod_to_esm = mod_load=>{
-  let m = mod_load;
-  let _mod_id = JSON.stringify(m.npm_uri);
-  let b = '';
-  if (m.type=='global'){
-    return `
-      (()=>{
-      ${m.body}
-      })();
-      export default window.${m.global};
-    `;
-  }
-  if (m.cjs){
-    if (!m.requires)
-      m.requires = cjs_require_scan(m.body);
-    if (!m.body_cjs)
-      m.body_cjs = cjs_require_tr_await(m.body);
-    return `
-      let lb = window.lif.boot;
-      let module = {exports: {}};
-      let exports = module.exports;
-      let process = {env: {}};
-      let require = module=>lb.require_cjs(${_mod_id}, module);
-      (()=>{
-      ${m.body_cjs}
-      })();
-      export default module.exports;
-    `;
-  }
+const file_parse = f=>{
+  if (f.parse)
+    return f.parse;
   let parser = Babel.packages.parser;
   let traverse = Babel.packages.traverse.default;
-  let p = parser.parse(m.body, {sourceType: 'script'});
-  let exports = [];
-  traverse(p, {
+  f.parse = parser.parse(f.body, {sourceType: 'script'});
+  f.exports_cjs = [];
+  traverse(f.parse, {
     AssignmentExpression: function(path){
       let n = path.node, l = n.left, r = n.right;
       if (n.operator=='=' &&
@@ -278,52 +289,84 @@ const mod_to_esm = mod_load=>{
         l.object.name=='exports' && l.object.type=='Identifier' &&
         l.property.type=='Identifier')
       {
-        exports.push(l.property.name);
+        f.exports_cjs.push(l.property.name);
       }
     },
   });
-  if (m.type=='amd'){
-    let _exports = '';
-    exports.forEach(e=>_exports +=
-      `export const ${e} = mod.exports.${e};\n`);
-    _exports += `export default mod.exports;\n`;
-    b = `
-      let lb = window.lif.boot;
-      let define = function(id, deps, factory){
-        return lb.define_amd(${_mod_id}, arguments); };
-      define.amd = {};
-      let require = function(deps, cb){
-        return lb.require_amd(${_mod_id}, deps, cb); };
-      (()=>{
-      ${m.body}
-      })();
-      let mod = await lb.module_get(${_mod_id});
-      ${_exports}
-    `;
-  } else if (m.type=='cjs'){
-    let requires = cjs_require_scan(m.body), _exports = '', _requires = '';
-    exports.forEach(e=>_exports +=
-      `export const ${e} = module.exports.${e};\n`);
-    _exports += `export default module.exports;\n`;
-    requires.forEach(p=>_requires +=
-      `await require_single(module, ${JSON.stringify(p)});\n`);
-    b = `
-      let lb = window.lif.boot;
-      let module = {exports: {}};
-      let exports = module.exports;
-      let process = {env: {}};
-      let require = function(module){
-        return lb.require_cjs(${_mod_id}, module); };
-      ${_requires}
-      (()=>{
-      ${m.body}
-      })();
-      let mod = await lb.module_get(${_mod_id});
-      ${_exports}
-    `;
-  }
-  return b || m.body;
+  return f.parse;
 };
+
+const file_body_amd = f=>{
+  if (f.body_amd)
+    return f.body_amd;
+  let _exports = '';
+  let uri_s = JSON.stringify(f.uri);
+  file_parse(f);
+  f.exports_cjs.forEach(e=>_exports +=
+    `export const ${e} = mod.exports.${e};\n`);
+  _exports += `export default mod.exports;\n`;
+  return f.body_amd = `
+    let lb = window.lif.boot;
+    let define = function(id, deps, factory){
+      return lb.define_amd(${uri_s}, arguments); };
+    define.amd = {};
+    let require = function(deps, cb){
+      return lb.require_amd(${uri_s}, deps, cb); };
+    (()=>{
+    ${f.body}
+    })();
+    let mod = await lb.module_get(${uri_s});
+    ${_exports}
+  `;
+};
+
+const file_body_cjs_shim = async f=>{
+  if (f.wait_body_cjs)
+    return await f.wait_body_cjs;
+  let p = f.wait_body_cjs = xpromise();
+  let uri_s = JSON.stringify(f.uri);
+  let _exports = '';
+  let res = await app_chan.cmd('import', {url: '/.lif/npm.cjs'+f.uri});
+  f.exports_cjs_shim = res.exports;
+  f.exports_cjs_shim.forEach(e=>_exports +=
+    `export const ${e} = _exports.${e};\n`);
+  return p.return(f.body_cjs_shim = `
+    import _export from ${JSON.stringify()};
+    let mod = await lb.module_get(${uri_s});
+    export default _export;
+    ${_exports}
+  `);
+};
+
+const file_body_global = f=>{
+  if (f.body_global)
+    return f.body_global;
+  return f.body_global = `
+    (()=>{
+    ${f.body}
+    })();
+    export default window.${f.static.global};
+  `;
+}
+
+const file_body_cjs = f=>{
+  if (f.body_cjs)
+    return f.body_cjs;
+  let uri_s = JSON.stringify(f.uri);
+  f.requires_cjs = cjs_require_scan(f.body);
+  f.body_cjs_tr = cjs_require_tr_await(f.body);
+  return f.body_cjs = `
+    let lb = window.lif.boot;
+    let module = {exports: {}};
+    let exports = module.exports;
+    let process = {env: {}};
+    let require = module=>lb.require_cjs(${uri_s}, module);
+    (()=>{
+    ${f.body_cjs_tr}
+    })();
+    export default module.exports;
+  `;
+}
 
 let headers = {
   js: new Headers({'content-type': 'application/javascript'}),
@@ -436,33 +479,33 @@ let npm_file_lookup = (pkg, file)=>{
   }
   return {};
 };
-async function npm_pkg_load(log, npm_uri){
-  let npm, uri, mod_ver, load;
-  if (!(uri = npm_uri_parse(npm_uri)))
-    throw Error('invalid module name '+npm_uri);
-  mod_ver = uri.name+uri.version;
+async function npm_pkg_load(log, uri){
+  let npm, _uri, mod_ver, npm_s;
+  if (!(_uri = npm_uri_parse(uri)))
+    throw Error('invalid module name '+uri);
+  mod_ver = _uri.name+_uri.version;
   if (npm = npm_pkg[mod_ver])
     return await npm.wait;
-  npm = npm_pkg[mod_ver] = {npm_uri, uri, mod_ver, wait: xpromise()};
-  npm.file_lookup = npm_uri=>{
-    let uri;
-    if (!(uri = npm_uri_parse(npm_uri)))
-      throw Error('invalid module name '+npm_uri);
-    let ofile = uri.path.replace(/^\//, '')||'.';
+  npm = npm_pkg[mod_ver] = {uri, _uri, mod_ver, wait: xpromise()};
+  npm.file_lookup = uri=>{
+    let _uri;
+    if (!(_uri = npm_uri_parse(uri)))
+      throw Error('invalid module name '+uri);
+    let ofile = _uri.path.replace(/^\//, '')||'.';
     let {file, type} = npm_file_lookup(npm.pkg, ofile);
     if (!file)
-      throw Error('no module export found for '+npm_uri);
+      throw Error('no module export found for '+uri);
     if (file=='.')
-      throw Error('no module main '+npm_uri);
+      throw Error('no module main '+uri);
     return {nfile: file, type, redirect: file!=ofile, ofile,
       url: npm.cdn+'/'+npm.mod_ver+'/'+file};
   };
-  if ((load = npm_load_static(mod_ver)) || (load = npm_load_static(npm_uri))){
-    npm.static = load;
-    npm.pkg = load.pkg;
-    npm.body = load.body;
-    npm.type = load.type;
-    npm.url = load.url;
+  if ((npm_s = npm_load_static(mod_ver)) || (npm_s = npm_load_static(uri))){
+    npm.static = npm_s;
+    npm.pkg = npm_s.pkg;
+    npm.body = npm_s.body;
+    npm.type = npm_s.type;
+    npm.url = npm_s.url;
     if (npm.body===undefined){
       let {response} = await fetch_try(log, npm.url);
       npm.body = await response.text();
@@ -474,7 +517,7 @@ async function npm_pkg_load(log, npm_uri){
     let urls = [];
     npm_cdn.forEach(cdn=>urls.push(cdn+'/'+npm.mod_ver+'/package.json'));
     let {response, url, idx} = await fetch_try(log, urls);
-    let msg = ' in '+npm_uri+' '+url;
+    let msg = ' in '+uri+' '+url;
     npm.cdn = npm_cdn[idx];
     let pkg = npm.pkg = await response.json();
     if (!pkg)
@@ -483,34 +526,36 @@ async function npm_pkg_load(log, npm_uri){
       throw Error('invalid package.json '+msg);
     let main;
     if (!(main = pkg.module || pkg.exports?.['.'] || pkg.main))
-      throw Error('missing module main: '+npm_uri+' in '+url);
+      throw Error('missing module main: '+uri+' in '+url);
     if (typeof main=='string')
       npm.main = main;
     else if (main.default)
       npm.main = main.default;
     else
       throw Error('cannot parse main '+JSON.stringify(main)+msg);
-    npm.wait.return(npm);
+    return npm.wait.return(npm);
   } catch(err){
     npm.wait.throw(err);
     throw(err);
   }
-  return await npm.wait;
 }
 
-async function npm_fetch_file(log, npm_uri){
-  log('npm_fetch_file');
-  let load, type, body;
-  let npm = await npm_pkg_load(log, npm_uri);
-  let get = npm.file_lookup(npm_uri);
-  load = {url: get.url, type: get.type, npm_uri};
-  if (load.body===undefined){
-    let {response} = await fetch_try(log, load.url);
-    load.body = await response.text();
-  }
-  return load;
+async function npm_file_load(log, uri){
+  log('npm_file_load');
+  let file, _uri;
+  if (!(_uri = npm_uri_parse(uri)))
+    throw Error('invalid module name '+uri);
+  if (file = npm_file[uri])
+    return await file.wait;
+  file = npm_file[uri] = {uri, _uri, wait: xpromise()};
+  file.npm = await npm_pkg_load(log, uri);
+  let {url, type} = file.npm.file_lookup(uri);
+  let {response} = await fetch_try(log, url);
+  file.body = await response.text();
+  return file.wait.return(file);
 }
  
+let app_chan;
 async function _sw_fetch(event){
   let {request, request: {url}} = event;
   let u = url_parse(url);
@@ -530,25 +575,29 @@ async function _sw_fetch(event){
     return fetch(request);
   if (path=='/favicon.ico')
     return await fetch('https://raw.githubusercontent.com/DustinBrett/daedalOS/refs/heads/main/public/favicon.ico');
-  if (v=str_prefix(path, '/.lif/npm.cjs/')){
-  }
   if (v=str_prefix(path, '/.lif/npm/')){
     log('npm');
-    let npm_uri = v.rest;
-    let load = await npm_fetch_file(log, npm_uri);
-    if (load.type && load.type!='esm')
-      load.body = mod_to_esm(load);
-    log(`module ${npm_uri} loaded ${load.url}`);
-    return new Response(load.body, {headers: headers.js});
+    let uri = v.rest;
+    let f = await npm_file_load(log, uri);
+    if (f.type=='global')
+      body = file_body_global(f);
+    else if (f.type=='amd'){
+      body = file_body_amd(f);
+    } else if (f.type=='cjs'){
+      body = await file_body_cjs_shim(f);
+    } else
+      body = f.body;
+    log(`module ${uri} loaded ${f.url}`);
+    return new Response(f.body, {headers: headers.js});
   }
   if (v=str_prefix(path, '/.lif/npm.cjs/')){
     log('npm.cjs');
-    let npm_uri = v.rest;
-    let load = await npm_fetch_file(log, npm_uri);
-    load.cjs = true;
-    load.body = mod_to_esm(load);
-    log(`module ${npm_uri} loaded ${load.url}`);
-    return new Response(load.body, {headers: headers.js});
+    let uri = v.rest;
+    let f = await npm_file_load(log, uri);
+    f.cjs = true;
+    f.body = await file_body_cjs(f);
+    log(`module ${uri} loaded ${f.url}`);
+    return new Response(f.body, {headers: headers.js});
   }
   if (u.ext=='.css'){
     let response = await fetch(path);
@@ -616,10 +665,22 @@ async function sw_fetch(event){
   }
 }
 
-self.addEventListener('fetch', event=>{
-  try {
-    event.respondWith(sw_fetch(event));
-  } catch (err){
-    console.error("ServiceWorker NetworkError: "+err);
-  }
-});
+function sw_init(){
+  let count = 0;
+  self.addEventListener("message", event=>{
+    console.log('sw msg', msg);
+    if (app_chan.listen(event))
+      console.log('sw msg handled', msg.id);
+    return;
+  });
+  self.addEventListener('fetch', event=>{
+    try {
+      event.respondWith(sw_fetch(event));
+    } catch (err){
+      console.error("ServiceWorker NetworkError: "+err);
+    }
+  });
+}
+
+sw_init();
+

@@ -13,6 +13,59 @@ let xpromise = ()=>{
   promise.throw = _throw;
   return promise;
 };
+// chan.js
+class postmessage_chan {
+  req = {};
+  cmd = {};
+  chan = null;
+  async cmd(cmd, req){
+    let id = ''+(id++);
+    let cq = this.req[id] = xpromise();
+    chan.postMessage({cmd: cmd, req: req, id: id});
+    return await cq;
+  }
+  async cmd_server_cb(msg){
+    let cmd_cb = this.cmd[msg.cmd];
+    if (!cmd_cb)
+      throw Error('invalid cmd', msg.cmd);
+    try {
+      let res = await cmd_cb({chan: this, cmd: msg.cmd, arg: msg.arg});
+      chan.postMessage({cmd_res: msg.cmd, id_res: msg.id, res});
+    } catch(err){
+      chan.postMessage({cmd_res: msg.cmd, id_res: msg.id, err: ''+err});
+      throw err;
+    }
+  }
+  on_msg(event){
+    let msg = event.data;
+    if (msg.init=='init'){
+      this.chan = event.ports[0];
+      return true;
+    }
+    if (!this.chan)
+      throw Error('chan not init');
+    if (msg.cmd)
+      return this.cmd_server_cb(msg);
+    if (msg.id){
+      if (!this.req[msg.id])
+        throw Error('invalid char msg.id', msg.id);
+      let cb = this.req[msg.id];
+      delete this.req[msg.id];
+      cb.return(msg.res);
+    }
+    return true;
+  }
+  init_server_cmd(cmd, cb){
+    this.cmd[cmd] = cb;
+  }
+  // controller = navigator.serviceWorker.controller
+  init_client(controller){
+    this.chan = new MessageChannel();
+    controller.postMessage({init: 'init'}, [this.chan.port2]);
+    this.chan.port1.onmessage = event=>this.on_msg(event);
+  }
+}
+let sw_chan;
 
 lif.boot = {
   define_amd: function(module_id, args){
@@ -114,11 +167,32 @@ lb.define_amd.amd = {};
 window.define = lb.define_amd;
 window.require = lb.require_amd;
 
+let import_do = async({url, opt})=>{
+  try {
+    let ret = {};
+    let exports = await import(url, opt);
+    if (opt.exports){
+      ret.exports = [];
+      for (let i in exports)
+        ret.exports.push(i);
+    }
+    return ret;
+  } catch(err){
+    console.log('import_do('+url+') failed', err);
+    throw err;
+  }
+};
 let lif_boot_start = async()=>{
   try {
     const registration = await navigator.serviceWorker.register('/lif_sw.js');
     await navigator.serviceWorker.ready;
     const launch = async()=>{
+      sw_chan = new postmessage_chan();
+      sw_chan.init_client(navigator.serviceWorker.controller);
+      sw_chan.init_server_cmd('import', async(req)=>{
+        let ret = await import_do({url: req.url, opt: {exports: true}});
+        return ret;
+      });
       let url = window.launch_url || './pages/index.tsx';
       try {
         await import(url);
