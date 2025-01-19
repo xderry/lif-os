@@ -305,7 +305,8 @@ const file_body_cjs_shim = async f=>{
   let p = f.wait_body_cjs = ewait();
   let uri_s = JSON.stringify(f.uri);
   let _exports = '';
-  let res = await app_chan.cmd('import', {url: '/.lif/npm.cjs'+f.uri});
+  let res = await app_chan.cmd('import', {url: '/.lif/npm.cjs/'+f.uri});
+  console.log('import res', res);
   f.exports_cjs_shim = res.exports;
   f.exports_cjs_shim.forEach(e=>_exports +=
     `export const ${e} = _exports.${e};\n`);
