@@ -310,6 +310,7 @@ const file_body_cjs_shim = async f=>{
   let _exports = '';
   // str.replace_prefix(f.url
   // uri_parse('/.lif/npm.cjs/'+f.uri, base);
+  console.log('import('+f.uri+') cmd');
   let res = await app_chan.cmd('import', {url: '/.lif/npm.cjs/'+f.uri});
   console.log('import('+f.uri+') res', res);
   f.exports_cjs_shim = res.exports;
@@ -483,7 +484,7 @@ async function npm_pkg_load(log, uri){
       throw Error('no module export found for '+uri);
     if (file=='.')
       throw Error('no module main '+uri);
-    return {nfile: file, type, redirect: file!=ofile, ofile,
+    return {type, redirect: file!=ofile,
       url: npm.cdn+'/'+npm.mod_ver+'/'+file};
   };
   if ((npm_s = npm_load_static(mod_ver)) || (npm_s = npm_load_static(uri))){
@@ -534,7 +535,12 @@ async function npm_file_load(log, uri){
     return await file.wait;
   file = npm_file[uri] = {uri, _uri, wait: ewait()};
   file.npm = await npm_pkg_load(log, uri);
-  let {url, type} = file.npm.file_lookup(uri);
+  let {url, type, redirect} = file.npm.file_lookup(uri);
+  file.url = url;
+  file.type = type;
+  file.redirect = redirect;
+  if (file.redirect)
+    return file.wait.return(file);
   let {response} = await fetch_try(log, url);
   file.body = await response.text();
   log('npm_file_load: done');
@@ -564,6 +570,8 @@ async function _sw_fetch(event){
   if (v=str.prefix(path, '/.lif/npm/')){
     let uri = v.rest, body;
     let f = await npm_file_load(log, uri);
+    if (f.redirect)
+      return Response.redirect(f.url);
     log('npm', f.type);
     if (f.type=='global')
       body = file_body_global(f);
