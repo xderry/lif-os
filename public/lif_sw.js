@@ -461,7 +461,7 @@ let npm_file_lookup = (pkg, file)=>{
     if (typeof pkg.module=='string')
       return {file: pkg.module, type: 'mjs'};
     if (typeof pkg.main=='string')
-      return {file: pkg.main, type: 'amd'};
+      return {file: pkg.main, type: 'cjs'};
   }
   return {};
 };
@@ -474,18 +474,20 @@ async function npm_pkg_load(log, uri){
     return await npm.wait;
   npm = npm_pkg[mod_ver] = {uri, _uri, mod_ver, wait: ewait()};
   npm.file_lookup = uri=>{
-    let _uri;
+    let _uri, redirect;
     if (!(_uri = npm_uri_parse(uri)))
       throw Error('invalid module name '+uri);
     let ofile = _uri.path.replace(/^\//, '')||'.';
     let {file, type} = npm_file_lookup(npm.pkg, ofile);
-    log('lookup', file, type);
+    let nuri = '/'+npm.mod_ver+'/'+(file||ofile);
     if (!file)
-      throw Error('no module export found for '+uri);
-    if (file=='.')
+      type = npm.type;
+    else if (file=='.')
       throw Error('no module main '+uri);
-    return {type, redirect: file!=ofile,
-      url: npm.cdn+'/'+npm.mod_ver+'/'+file};
+    else if (file!=ofile)
+      redirect = nuri;
+    type ||= npm.type;
+    return {type, redirect, nuri};
   };
   if ((npm_s = npm_load_static(mod_ver)) || (npm_s = npm_load_static(uri))){
     npm.static = npm_s;
@@ -520,6 +522,8 @@ async function npm_pkg_load(log, uri){
       npm.main = main.default;
     else
       throw Error('cannot parse main '+JSON.stringify(main)+msg);
+    let {file, type} = npm_file_lookup(npm.pkg, '.');
+    npm.type = type;
     return npm.wait.return(npm);
   } catch(err){
     npm.wait.throw(err);
@@ -535,15 +539,15 @@ async function npm_file_load(log, uri){
     return await file.wait;
   file = npm_file[uri] = {uri, _uri, wait: ewait()};
   file.npm = await npm_pkg_load(log, uri);
-  let {url, type, redirect} = file.npm.file_lookup(uri);
-  file.url = url;
+  let {nuri, type, redirect} = file.npm.file_lookup(uri);
+  file.nuri = nuri;
+  file.url = npm_cdn[0]+nuri;
   file.type = type;
   file.redirect = redirect;
   if (file.redirect)
     return file.wait.return(file);
-  let {response} = await fetch_try(log, url);
+  let {response} = await fetch_try(log, file.url);
   file.body = await response.text();
-  log('npm_file_load: done');
   return file.wait.return(file);
 }
  
@@ -561,7 +565,7 @@ async function _sw_fetch(event){
   if (request.method!='GET')
     return fetch(request);
   let v, cjs;
-  log('Req '+url);
+  log('Req');
   let pkg = pkg_get(path);
   if (external)
     return fetch(request);
@@ -570,20 +574,24 @@ async function _sw_fetch(event){
   if (v=str.prefix(path, '/.lif/npm/')){
     let uri = v.rest, body;
     let f = await npm_file_load(log, uri);
-    if (f.redirect)
-      return Response.redirect(f.url);
+    if (f.redirect){
+      log(`module ${uri} -> ${f.nuri}`);
+      return Response.redirect('/.lif/npm'+f.nuri);
+    }
     log('npm', f.type);
+    if (f.type=='raw')
+      body = f.body;
     if (f.type=='global')
       body = file_body_global(f);
-    else if (f.type=='amd'){
+    else if (f.type=='amd')
       body = file_body_amd(f);
-    } else if (f.type=='cjs' || !f.type){
+    else if (f.type=='cjs' || !f.type){
       log('cjs_shim');
       body = await file_body_cjs_shim(f);
       log('cjs_shim: done');
     } else
       body = f.body;
-    log(`module ${uri} loaded ${f.url}`);
+    log(`module ${uri} loaded ${f.uri}`);
     return new Response(f.body, {headers: headers.js});
   }
   if (v=str.prefix(path, '/.lif/npm.cjs/')){
