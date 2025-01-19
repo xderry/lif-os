@@ -100,6 +100,14 @@ lif.boot = {
     resolve(m.modules.exports);
     return m.module.exports;
   },
+  require_cjs_shim: function(mod_self, module_id){
+    let m = modules[module_id];
+    if (!m)
+      throw Error('module '+module_id+' not loaded beforehand');
+    if (!m.loaded)
+      throw Error('module '+module_id+' not loaded completion');
+    return m.module;
+  },
 };
 lb = lif.boot;
 lb.define_amd.amd = {};

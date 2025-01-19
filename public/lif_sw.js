@@ -88,8 +88,11 @@ const url_parse = (url, base)=>{
   u.dir = path_dir(u.path);
   return u;
 };
-const uri_parse = uri=>{
-  let u = {...url_parse(uri, 'http://x')};
+const uri_parse = (uri, base)=>{
+  base ||= '';
+  if (base && base[0]!='/')
+    throw Error('invalid uri '+base);
+  let u = {...url_parse(uri, 'http://x'+base)};
   u.host = u.hostname = u.origin = u.href = u.protocol = '';
   return u;
 };
@@ -119,7 +122,7 @@ let npm_static = {
       useRef useState useSyncExternalStore useTransition version`,
   },
   /*
-  'react/jsx-runtime': {type: 'jsm',
+  'react/jsx-runtime': {type: 'mjs',
     url: 'https://unpkg.com/jsx-runtime@1.2.0/index.js'},
   */
   /*
@@ -305,14 +308,16 @@ const file_body_cjs_shim = async f=>{
   let p = f.wait_body_cjs = ewait();
   let uri_s = JSON.stringify(f.uri);
   let _exports = '';
+  // str.replace_prefix(f.url
+  // uri_parse('/.lif/npm.cjs/'+f.uri, base);
   let res = await app_chan.cmd('import', {url: '/.lif/npm.cjs/'+f.uri});
-  console.log('import res', res);
+  console.log('import('+f.uri+') res', res);
   f.exports_cjs_shim = res.exports;
   f.exports_cjs_shim.forEach(e=>_exports +=
     `export const ${e} = _exports.${e};\n`);
   return p.return(f.body_cjs_shim = `
     import _export from ${JSON.stringify()};
-    let mod = await lb.module_get(${uri_s});
+    let mod = await lb.require_cjs_shim(${uri_s});
     export default _export;
     ${_exports}
   `);
@@ -341,9 +346,9 @@ const file_body_cjs = f=>{
     let exports = module.exports;
     let process = {env: {}};
     let require = module=>lb.require_cjs(${uri_s}, module);
-    (()=>{
+    //(()=>{
     ${f.body_cjs_tr}
-    })();
+    //})();
     export default module.exports;
   `;
 }
@@ -431,7 +436,7 @@ let npm_file_lookup = (pkg, file)=>{
       continue;
     // default import require types
     if (typeof v.import=='string'){
-      res.push({file: v.import, type: 'jsm'});
+      res.push({file: v.import, type: 'mjs'});
       continue;
     }
     if (typeof v.default=='string'){
@@ -453,7 +458,7 @@ let npm_file_lookup = (pkg, file)=>{
   }
   if (file=='.'){
     if (typeof pkg.module=='string')
-      return {file: pkg.module, type: 'jsm'};
+      return {file: pkg.module, type: 'mjs'};
     if (typeof pkg.main=='string')
       return {file: pkg.main, type: 'amd'};
   }
