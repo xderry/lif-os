@@ -1,72 +1,9 @@
-let lif = {};
-window.lif = lif;
+let lif = window.lif = {};
+import util from './lif_util.js';
+let {ewait, postmessage_chan} = util;
+
 let modules = {};
 let lb;
-// Promise with return() and throw()
-let xpromise = ()=>{
-  let _return, _throw;
-  let promise = new Promise((resolve, reject)=>{
-    _return = ret=>{ resolve(ret); return ret; };
-    _throw = err=>{ reject(err); return err; };
-  });
-  promise.return = _return;
-  promise.throw = _throw;
-  return promise;
-};
-// chan.js
-class postmessage_chan {
-  req = {};
-  cmd_cb = {};
-  chan = null;
-  async cmd(cmd, req){
-    let id = ''+(id++);
-    let cq = this.req[id] = xpromise();
-    this.chan.postMessage({cmd, req, id});
-    return await cq;
-  }
-  async cmd_server_cb(msg){
-    let cmd_cb = this.cmd_cb[msg.cmd];
-    if (!cmd_cb)
-      throw Error('invalid cmd', msg.cmd);
-    try {
-      let res = await cmd_cb({chan: this, cmd: msg.cmd, arg: msg.arg});
-      this.chan.postMessage({cmd_res: msg.cmd, id_res: msg.id, res});
-    } catch(err){
-      this.chan.postMessage({cmd_res: msg.cmd, id_res: msg.id, err: ''+err});
-      throw err;
-    }
-  }
-  on_msg(event){
-    let msg = event.data;
-    if (!this.chan)
-      throw Error('chan not init');
-    if (msg.cmd)
-      return this.cmd_server_cb(msg);
-    if (msg.id){
-      if (!this.req[msg.id])
-        throw Error('invalid char msg.id', msg.id);
-      let cb = this.req[msg.id];
-      delete this.req[msg.id];
-      cb.return(msg.res);
-    }
-    return true;
-  }
-  init_server_cmd(cmd, cb){
-    this.cmd_cb[cmd] = cb;
-  }
-  // controller = navigator.serviceWorker.controller
-  connect(controller){
-    this.chan = new MessageChannel();
-    controller.postMessage({connect: true}, [this.chan.port2]);
-    this.chan.port1.onmessage = event=>this.on_msg(event);
-  }
-  listen(event){
-    if (event.data?.connect){
-      this.chan = event.ports[0];
-      return true;
-    }
-  }
-}
 let sw_chan;
 
 lif.boot = {
@@ -93,7 +30,7 @@ lif.boot = {
     }
     if (modules[module_id])
       throw Error('define('+module_id+') already defined');
-    let promise = xpromise();
+    let promise = ewait();
     let m = modules[module_id] = {module_id, deps, factory, loaded: false,
       promise, module: {exports: {}}};
     lb.require_amd(module_id, deps, function(...deps){
@@ -191,8 +128,7 @@ let lif_boot_start = async()=>{
     const launch = async()=>{
       sw_chan = new postmessage_chan();
       sw_chan.connect(navigator.serviceWorker.controller);
-      sw_chan.init_server_cmd('import', async(req)=>
-        await import_do({url: req.url, opt: {exports: true}}));
+      sw_chan.add_server_cmd('import', async({arg})=>await import_do(arg));
       let url = window.launch_url || './pages/index.tsx';
       try {
         await import(url);

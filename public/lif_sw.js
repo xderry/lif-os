@@ -1,14 +1,7 @@
-/*global clients,importScripts*/ // ServiceWorkerGlobalScope
-
-/*global Babel*/
-importScripts('https://unpkg.com/@babel/standalone@7.26.4/babel.js');
-let Babel = self.Babel;
-// this is needed to activate the worker immediately without reload
-// @see https://developers.google.com/web/fundamentals/primers/service-workers/lifecycle#clientsclaim
-self.addEventListener('activate', event=>event.waitUntil(clients.claim()));
-
-// Promise with return() and throw()
-let xpromise = ()=>{
+/*global importScripts*/ // ServiceWorkerGlobalScope
+// service worker must register handlers on first run (not async)
+let lif_sw;
+const ewait = ()=>{
   let _return, _throw;
   let promise = new Promise((resolve, reject)=>{
     _return = ret=>{ resolve(ret); return ret; };
@@ -18,83 +11,67 @@ let xpromise = ()=>{
   promise.throw = _throw;
   return promise;
 };
-// string.js
-const string = {};
-string.split_ws = s=>s.split(/\s+/).filter(s=>s);
-string.es6_str = args=>{
-  var parts = args[0], s = '';
-  if (!Array.isArray(parts))
-    return parts;
-  s += parts[0];
-  for (var i = 1; i<parts.length; i++){
-    s += args[i];
-    s += parts[i];
-  }
-  return s;
+
+lif_sw = {
+  on_message: null,
+  on_fetch: null,
+  wait_activate: ewait(),
 };
-string.qw = function(s){
-  return string.split_ws(!Array.isArray(s) ? s : string.es6_str(arguments)); };
-const qw = string.qw;
-const str_prefix = (url, prefix)=>{
-  if (url.startsWith(prefix))
-    return {prefix: prefix, rest: url.substr(prefix.length)};
-};
-// shortcuts
-let OF = Object.entries;
-// chan.js
-class postmessage_chan {
-  req = {};
-  cmd_cb = {};
-  chan = null;
-  async cmd(cmd, req){
-    let id = ''+(id++);
-    let cq = this.req[id] = xpromise();
-    this.chan.postMessage({cmd, req, id});
-    return await cq;
-  }
-  async cmd_server_cb(msg){
-    let cmd_cb = this.cmd_cb[msg.cmd];
-    if (!cmd_cb)
-      throw Error('invalid cmd', msg.cmd);
-    try {
-      let res = await cmd_cb({chan: this, cmd: msg.cmd, arg: msg.arg});
-      this.chan.postMessage({cmd_res: msg.cmd, id_res: msg.id, res});
-    } catch(err){
-      this.chan.postMessage({cmd_res: msg.cmd, id_res: msg.id, err: ''+err});
-      throw err;
-    }
-  }
-  on_msg(event){
-    let msg = event.data;
-    if (!this.chan)
-      throw Error('chan not init');
-    if (msg.cmd)
-      return this.cmd_server_cb(msg);
-    if (msg.id){
-      if (!this.req[msg.id])
-        throw Error('invalid char msg.id', msg.id);
-      let cb = this.req[msg.id];
-      delete this.req[msg.id];
-      cb.return(msg.res);
-    }
-    return true;
-  }
-  init_server_cmd(cmd, cb){
-    this.cmd_cb[cmd] = cb;
-  }
-  // controller = navigator.serviceWorker.controller
-  connect(controller){
-    this.chan = new MessageChannel();
-    controller.postMessage({connect: true}, [this.chan.port2]);
-    this.chan.port1.onmessage = event=>this.on_msg(event);
-  }
-  listen(event){
-    if (event.data?.connect){
-      this.chan = event.ports[0];
-      return true;
-    }
-  }
+
+function sw_init_pre(){
+  // this is needed to activate the worker immediately without reload
+  // @see https://developers.google.com/web/fundamentals/primers/service-workers/lifecycle#clientsclaim
+  self.addEventListener('activate', event=>event.waitUntil((async()=>{
+    await self.clients.claim();
+    await lif_sw.wait_activate;
+  })()));
+  self.addEventListener("message", event=>lif_sw.on_message(event));
+  self.addEventListener('fetch', event=>lif_sw.on_fetch(event));
 }
+sw_init_pre();
+
+(async()=>{
+// service worker import() implementation
+let import_modules = {};
+let import_module = async(url)=>{
+  let mod;
+  if (mod = import_modules[url])
+    return await mod.wait;
+  mod = import_modules[url] = {url, wait: ewait()};
+  try {
+    let response = await fetch(url);
+    if (response.status!=200)
+      throw Error('import('+url+') failed fetch');
+    let body = await response.text();
+    let body_tr = body.replace(/\nexport default ([^;]+);\n/,
+      (match, _export)=>'\n;module.exports = '+_export+';\n');
+    mod.script = `'use strict';
+      let module = {exports: {}};
+      let exports = module.exports;
+      (()=>{
+      ${body_tr}
+      })();
+      module.exports;
+    `;
+  } catch(err){
+    console.error('import('+url+') failed', err);
+    mod.wait.throw(err);
+    throw err;
+  }
+  try {
+    mod.exports = await eval(mod.script);
+    return mod.wait.return(mod.exports);
+  } catch(err){
+    console.error('import('+url+') failed eval', err, err.stack);
+    mod.wait.throw(err);
+    throw err;
+  }
+};
+
+let Babel = await import_module('https://unpkg.com/@babel/standalone@7.26.4/babel.js');
+let util = await import_module('./lif_util.js');
+let {postmessage_chan, str, OF} = util;
+let {qw} = str;
 
 // path.js
 const path_ext = path=>path.match(/\.[^./]*$/)?.[0];
@@ -142,7 +119,7 @@ let npm_static = {
       useRef useState useSyncExternalStore useTransition version`,
   },
   /*
-  'react/jsx-runtime': {type: 'esm',
+  'react/jsx-runtime': {type: 'jsm',
     url: 'https://unpkg.com/jsx-runtime@1.2.0/index.js'},
   */
   /*
@@ -237,7 +214,7 @@ const npm_load_static = path=>{
       mod = {m, name, rest: ''};
       break;
     }
-    if (m.is_dir && (v=str_prefix(path, name))){
+    if (m.is_dir && (v=str.prefix(path, name))){
       mod = {m, name, rest: v.rest};
       break;
     }
@@ -325,7 +302,7 @@ const file_body_amd = f=>{
 const file_body_cjs_shim = async f=>{
   if (f.wait_body_cjs)
     return await f.wait_body_cjs;
-  let p = f.wait_body_cjs = xpromise();
+  let p = f.wait_body_cjs = ewait();
   let uri_s = JSON.stringify(f.uri);
   let _exports = '';
   let res = await app_chan.cmd('import', {url: '/.lif/npm.cjs'+f.uri});
@@ -386,10 +363,10 @@ let pkg_map = {
 };
 const pkg_get = path=>{
   let v;
-  if (v=str_prefix(path, '/.lif/pkgroot/')){
+  if (v=str.prefix(path, '/.lif/pkgroot/')){
     let name = '/'+v.rest;
     for (let i in pkg_map){
-      if (v=str_prefix(name, i))
+      if (v=str.prefix(name, i))
         return pkg_map[i];
     }
   }
@@ -422,9 +399,9 @@ async function fetch_try(log, urls){
 // TODO support longer matches first /a/b/c matches before /a/b
 let file_match = (file, match)=>{
   let v;
-  if (!str_prefix(file, './'))
+  if (!str.prefix(file, './'))
     return;
-  if (!(v=str_prefix(file, match)))
+  if (!(v=str.prefix(file, match)))
     return;
   if (v.rest && !path_is_dir(file))
     return;
@@ -453,7 +430,7 @@ let npm_file_lookup = (pkg, file)=>{
       continue;
     // default import require types
     if (typeof v.import=='string'){
-      res.push({file: v.import, type: 'esm'});
+      res.push({file: v.import, type: 'jsm'});
       continue;
     }
     if (typeof v.default=='string'){
@@ -475,7 +452,7 @@ let npm_file_lookup = (pkg, file)=>{
   }
   if (file=='.'){
     if (typeof pkg.module=='string')
-      return {file: pkg.module, type: 'esm'};
+      return {file: pkg.module, type: 'jsm'};
     if (typeof pkg.main=='string')
       return {file: pkg.main, type: 'amd'};
   }
@@ -488,13 +465,14 @@ async function npm_pkg_load(log, uri){
   mod_ver = _uri.name+_uri.version;
   if (npm = npm_pkg[mod_ver])
     return await npm.wait;
-  npm = npm_pkg[mod_ver] = {uri, _uri, mod_ver, wait: xpromise()};
+  npm = npm_pkg[mod_ver] = {uri, _uri, mod_ver, wait: ewait()};
   npm.file_lookup = uri=>{
     let _uri;
     if (!(_uri = npm_uri_parse(uri)))
       throw Error('invalid module name '+uri);
     let ofile = _uri.path.replace(/^\//, '')||'.';
     let {file, type} = npm_file_lookup(npm.pkg, ofile);
+    log('lookup', file, type);
     if (!file)
       throw Error('no module export found for '+uri);
     if (file=='.')
@@ -543,17 +521,17 @@ async function npm_pkg_load(log, uri){
 }
 
 async function npm_file_load(log, uri){
-  log('npm_file_load');
   let file, _uri;
   if (!(_uri = npm_uri_parse(uri)))
     throw Error('invalid module name '+uri);
   if (file = npm_file[uri])
     return await file.wait;
-  file = npm_file[uri] = {uri, _uri, wait: xpromise()};
+  file = npm_file[uri] = {uri, _uri, wait: ewait()};
   file.npm = await npm_pkg_load(log, uri);
   let {url, type} = file.npm.file_lookup(uri);
   let {response} = await fetch_try(log, url);
   file.body = await response.text();
+  log('npm_file_load: done');
   return file.wait.return(file);
 }
  
@@ -577,22 +555,24 @@ async function _sw_fetch(event){
     return fetch(request);
   if (path=='/favicon.ico')
     return await fetch('https://raw.githubusercontent.com/DustinBrett/daedalOS/refs/heads/main/public/favicon.ico');
-  if (v=str_prefix(path, '/.lif/npm/')){
-    log('npm');
+  if (v=str.prefix(path, '/.lif/npm/')){
     let uri = v.rest, body;
     let f = await npm_file_load(log, uri);
+    log('npm', f.type);
     if (f.type=='global')
       body = file_body_global(f);
     else if (f.type=='amd'){
       body = file_body_amd(f);
-    } else if (f.type=='cjs'){
+    } else if (f.type=='cjs' || !f.type){
+      log('cjs_shim');
       body = await file_body_cjs_shim(f);
+      log('cjs_shim: done');
     } else
       body = f.body;
     log(`module ${uri} loaded ${f.url}`);
     return new Response(f.body, {headers: headers.js});
   }
-  if (v=str_prefix(path, '/.lif/npm.cjs/')){
+  if (v=str.prefix(path, '/.lif/npm.cjs/')){
     log('npm.cjs');
     let uri = v.rest;
     let f = await npm_file_load(log, uri);
@@ -649,7 +629,7 @@ async function _sw_fetch(event){
     }
     return new Response(res.code, {headers: headers.js});
   }
-  if (v=str_prefix(path, '/.lif/pkgroot/')){
+  if (v=str.prefix(path, '/.lif/pkgroot/')){
     let response = await fetch(path);
     return response;
     //let body = await response.text();
@@ -667,22 +647,21 @@ async function sw_fetch(event){
   }
 }
 
-function sw_init(){
-  let count = 0;
-  app_chan = new postmessage_chan();
-  self.addEventListener("message", event=>{
-    console.log('sw msg', event.data);
+function sw_init_post(){
+  app_chan = new util.postmessage_chan();
+  lif_sw.on_message = event=>{
     if (app_chan.listen(event))
       return;
-  });
-  self.addEventListener('fetch', event=>{
+  };
+  lif_sw.on_fetch = event=>{
     try {
       event.respondWith(sw_fetch(event));
     } catch (err){
       console.error("ServiceWorker NetworkError: "+err);
     }
-  });
+  };
+  lif_sw.wait_activate.return();
 }
-
-sw_init();
+sw_init_post();
+})();
 
