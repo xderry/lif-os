@@ -64,14 +64,14 @@ lif.boot = {
       cb(..._deps);
     })();
   },
-  module_get: async function(module_id){
+  module_get: async(module_id)=>{
     let m = modules[module_id];
     if (!m)
       throw Error('module '+module_id+' not loaded');
     await m.promise;
     return m.module;
   },
-  require_cjs: function(mod_self, module_id){
+  require_cjs: (mod_self, module_id)=>{
     let m = modules[module_id];
     if (!m)
       throw Error('module '+module_id+' not loaded beforehand');
@@ -79,7 +79,7 @@ lif.boot = {
       throw Error('module '+module_id+' not loaded completion');
     return m.module;
   },
-  require_single: async function(mod_self, module_id){
+  require_single: async(mod_self, module_id)=>{
     let m = modules[module_id];
     if (m){
       await m.promise;
@@ -89,9 +89,11 @@ lif.boot = {
     m = modules[module_id] = {module_id, deps: [], promise,
       loaded: false, module: {exports: {}}};
     try {
-      m.mod = await import(module_id);
+      let uri = lb.module_get_uri(mod_self, module_id);
+      console.log('require_single', mod_self, module_id, uri);
+      m.mod = await import(uri);
     } catch(error){
-      console.log('import('+module_id+') failed fetch from '+mod_self,
+      console.error('import('+module_id+') failed fetch from '+mod_self,
         error);
       throw error;
     }
@@ -100,13 +102,18 @@ lif.boot = {
     resolve(m.modules.exports);
     return m.module.exports;
   },
-  require_cjs_shim: function(mod_self, module_id){
+  require_cjs_shim: (mod_self, module_id)=>{
     let m = modules[module_id];
     if (!m)
       throw Error('module '+module_id+' not loaded beforehand');
     if (!m.loaded)
       throw Error('module '+module_id+' not loaded completion');
     return m.module;
+  },
+  module_get_uri: (mod_self, module_id)=>{
+    let prefix = 'http://x/';
+    let uri = URL.parse(module_id, prefix+mod_self);
+    return !uri ? module_id : uri.pathname.slice(1);
   },
 };
 lb = lif.boot;
@@ -117,12 +124,11 @@ window.require = lb.require_amd;
 let import_do = async({url, opt})=>{
   try {
     let ret = {};
+    console.log('import_do('+url+')');
     let exports = await import(url, opt);
-    if (opt.exports){
-      ret.exports = [];
-      for (let i in exports)
-        ret.exports.push(i);
-    }
+    ret.exports = [];
+    for (let i in exports)
+      ret.exports.push(i);
     return ret;
   } catch(err){
     console.log('import_do('+url+') failed', err);

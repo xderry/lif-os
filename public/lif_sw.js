@@ -249,11 +249,12 @@ let cjs_require_scan = function(js){
 };
 
 // require("file.js") -> (await require("file.js"))
-let cjs_require_tr_await = function(js){
+let cjs_require_tr_await = (uri, js)=>{
+  let uri_s = JSON.stringify(uri);
   // poor-man's require('module') scanner. in the future use a AST parser
   return js.replace(/\brequire\s*\(\s*(['"])([^'"\\]+)(['"])\s*\)/g,
     (match, q1, file, q2)=>
-    `(await lb.require_single(module, ${q1}${file}${q2}))`);
+    `(await require_async(${q1}${file}${q2}))`);
 };
 
 const file_parse = f=>{
@@ -308,11 +309,9 @@ const file_body_cjs_shim = async f=>{
   let p = f.wait_body_cjs = ewait();
   let uri_s = JSON.stringify(f.uri);
   let _exports = '';
-  // str.replace_prefix(f.url
-  // uri_parse('/.lif/npm.cjs/'+f.uri, base);
-  console.log('import('+f.uri+') cmd');
+  console.log('call import('+f.uri+')');
   let res = await app_chan.cmd('import', {url: '/.lif/npm.cjs/'+f.uri});
-  console.log('import('+f.uri+') res', res);
+  console.log('ret  import('+f.uri+')', res);
   f.exports_cjs_shim = res.exports;
   f.exports_cjs_shim.forEach(e=>_exports +=
     `export const ${e} = _exports.${e};\n`);
@@ -340,16 +339,17 @@ const file_body_cjs = f=>{
     return f.body_cjs;
   let uri_s = JSON.stringify(f.uri);
   f.requires_cjs = cjs_require_scan(f.body);
-  f.body_cjs_tr = cjs_require_tr_await(f.body);
+  f.body_cjs_tr = cjs_require_tr_await(f.uri, f.body);
   return f.body_cjs = `
     let lb = window.lif.boot;
     let module = {exports: {}};
     let exports = module.exports;
     let process = {env: {}};
     let require = module=>lb.require_cjs(${uri_s}, module);
-    //(()=>{
+    let require_async = async(module)=>await lb.require_single(${uri_s}, module);
+    await (async()=>{
     ${f.body_cjs_tr}
-    //})();
+    })();
     export default module.exports;
   `;
 }
