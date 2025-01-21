@@ -249,7 +249,7 @@ let cjs_require_scan = function(js){
 };
 
 // require("file.js") -> (await require("file.js"))
-let cjs_require_tr_await = (uri, js)=>{
+let cjs_require_tr_await_hack = (uri, js)=>{
   let uri_s = JSON.stringify(uri);
   // poor-man's require('module') scanner. in the future use a AST parser
   return js.replace(/\brequire\s*\(\s*(['"])([^'"\\]+)(['"])\s*\)/g,
@@ -260,8 +260,6 @@ let cjs_require_tr_await = (uri, js)=>{
 const file_parse = f=>{
   if (f.parse)
     return f.parse;
-  let parser = Babel.packages.parser;
-  let traverse = Babel.packages.traverse.default;
   f.parse = parser.parse(f.body, {sourceType: 'script'});
   f.exports_cjs = [];
   traverse(f.parse, {
@@ -334,12 +332,72 @@ const file_body_global = f=>{
   `;
 }
 
+let ast_get_scope_type = path=>{
+  for (; path; path=path.parentPath){
+    let b = path.scope.block;
+    if (b.async)
+      return 'async';
+    if (b.type=='FunctionExpression' ||
+      b.type=='ArrowFunctionExpression' ||
+      b.type=='FunctionDeclaration')
+    {
+      return b.async ? 'async' : 'sync';
+    }
+    if (b.type=='Program')
+      return 'program';
+  }
+};
+
+let parser = Babel.packages.parser;
+let traverse = Babel.packages.traverse.default;
+let file_ast = f=>{
+  f.ast = parser.parse(f.body, {sourceType: 'module'});
+  f.ast_exports = [];
+  f.ast_requires = [];
+  traverse(f.ast, {
+    AssignmentExpression: path=>{
+      let n = path.node, l = n.left, r = n.right, v;
+      if (n.operator=='=' &&
+        l.type=='MemberExpression' &&
+        l.object.name=='exports' && l.object.type=='Identifier' &&
+        l.property.type=='Identifier')
+      {
+        f.ast_exports.push(v=l.property.name);
+      }
+    },
+    CallExpression: path=>{
+      let n = path.node, v;
+      if (n.callee.type=='Identifier' && n.callee.name=='require' &&
+        n.arguments.length==1 && n.arguments[0].type=='StringLiteral')
+      {
+        v = n.arguments[0].value;
+        let type = ast_get_scope_type(path);
+        f.ast_requires.push({module: v, start: n.start, end: n.end, type});
+      }
+    },
+  });
+};
+
+let cjs_require_tr_await = f=>{
+  let s = '', src = f.body, pos = 0;
+  for (let r in f.ast_requires){
+    s += src.slice(pos, r.start);
+    if (r.type=='sync');
+      continue;
+    s += '(await require_async('+JSON.stringify(r.module)+'))';
+    pos = r.end;
+  }
+  s += src.slice(pos);
+  return s;
+};
+
 const file_body_cjs = f=>{
   if (f.body_cjs)
     return f.body_cjs;
   let uri_s = JSON.stringify(f.uri);
   f.requires_cjs = cjs_require_scan(f.body);
-  f.body_cjs_tr = cjs_require_tr_await(f.uri, f.body);
+  f.body_cjs_tr = cjs_require_tr_await(f);
+  file_ast(f);
   return f.body_cjs = `
     let lb = window.lif.boot;
     let module = {exports: {}};

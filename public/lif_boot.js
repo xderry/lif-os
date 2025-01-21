@@ -92,10 +92,9 @@ lif.boot = {
       let uri = lb.module_get_uri(mod_self, module_id);
       console.log('require_single', mod_self, module_id, uri);
       m.mod = await import(uri);
-    } catch(error){
-      console.error('import('+module_id+') failed fetch from '+mod_self,
-        error);
-      throw error;
+    } catch(err){
+      console.error('import('+module_id+') failed fetch from '+mod_self, err);
+      throw err;
     }
     m.loaded = true;
     m.module.exports = m.mod.default || m.mod;
@@ -146,9 +145,9 @@ let lif_boot_start = async()=>{
       let url = window.launch_url || './pages/index.tsx';
       try {
         await import(url);
-      } catch (error){
-        console.log('import('+url+') failed', error);
-        throw error;
+      } catch (err){
+        console.error('import('+url+') failed', err);
+        throw err;
       }
     };
     // this launches the React app if the SW has been installed before or
@@ -158,8 +157,8 @@ let lif_boot_start = async()=>{
       await launch();
     else
       navigator.serviceWorker.addEventListener('controllerchange', launch);
-  } catch (error){
-    console.error('Service worker registration failed', error.stack);
+  } catch (err){
+    console.error('Service worker registration failed', err.stack);
   }
 };
 lif_boot_start();

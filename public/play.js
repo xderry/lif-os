@@ -14,7 +14,8 @@ cm.s = v=>cm.setValue(v);
 cm.g('42');
 
 // let url = 'https://unpkg.com/react@18/umd/react.development.js';
-let url = 'https://unpkg.com/react-dom@19.0.0/cjs/react-dom.development.js';
+//let url = 'https://unpkg.com/react-dom@19.0.0/cjs/react-dom.development.js';
+let url = 'https://unpkg.com/react-dom@19.0.0/index.js';
 let res = await fetch(url);
 let src = await res.text();
 let p = parser.parse(src, {sourceType: 'module'});
@@ -48,7 +49,7 @@ traverse(p, {
       exports.push(v=l.property.name);
       let type = get_scope_type(path);
       //console.log(l.property.name);
-      console.log('found export('+v+'): '+b.slice(n.start, n.end), type, path);
+      console.log('found export('+v+'): '+b.slice(n.start, n.end), type, /*path*/);
     }
   },
   CallExpression: function(path){
@@ -58,7 +59,7 @@ traverse(p, {
     {
       requires.push(v = n.arguments[0].value);
       let type = get_scope_type(path);
-      console.log('found require('+v+'): '+b.slice(n.start, n.end), type, path);
+      console.log('found require('+v+'): '+src.slice(n.start, n.end), type, /*path*/);
     }
   },
 });
