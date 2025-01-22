@@ -98,7 +98,7 @@ lif.boot = {
     }
     m.loaded = true;
     m.module.exports = m.mod.default || m.mod;
-    resolve(m.modules.exports);
+    resolve(m.module.exports);
     return m.module.exports;
   },
   require_cjs_shim: (mod_self, module_id)=>{
@@ -110,9 +110,13 @@ lif.boot = {
     return m.module;
   },
   module_get_uri: (mod_self, module_id)=>{
-    let prefix = 'http://x/';
-    let uri = URL.parse(module_id, prefix+mod_self);
-    return !uri ? module_id : uri.pathname.slice(1);
+    let dir = module_id.split('/')[0];
+    if (dir=='.' || dir=='..' || dir==''){
+      let prefix = 'http://x/';
+      let uri = URL.parse(module_id, prefix+mod_self);
+      return !uri ? module_id : uri.pathname.slice(1);
+    }
+    return module_id;
   },
 };
 lb = lif.boot;
