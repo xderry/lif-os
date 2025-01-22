@@ -130,7 +130,7 @@ let import_do = async({url, opt})=>{
     console.log('import_do('+url+')');
     let exports = await import(url, opt);
     ret.exports = [];
-    for (let i in exports)
+    for (let i in exports?.default)
       ret.exports.push(i);
     return ret;
   } catch(err){

@@ -326,7 +326,7 @@ const file_body_cjs_shim = async f=>{
   f.exports_cjs_shim.forEach(e=>{
     if (e=='default')
       return;
-    _exports += `export const ${e} = _exports.${e};\n`;
+    _exports += `export const ${e} = _export.${e};\n`;
   });
   return p.return(f.body_cjs_shim = `
     import _export from ${JSON.stringify(npm_cjs_uri)};
@@ -412,7 +412,6 @@ const file_body_cjs = f=>{
   if (f.body_cjs)
     return f.body_cjs;
   let uri_s = JSON.stringify(f.uri);
-  console.log('cjs', f.uri, f);
   f.requires_cjs = cjs_require_scan(f.body);
   file_ast(f);
   let tr = cjs_require_tr_await(f);
@@ -668,9 +667,7 @@ async function _sw_fetch(event){
     else if (f.type=='amd')
       body = file_body_amd(f);
     else if (f.type=='cjs' || !f.type){
-      log('cjs_shim');
       body = await file_body_cjs_shim(f);
-      log('cjs_shim: done');
     } else
       body = f.body;
     log(`module ${uri} loaded ${f.uri}`);
