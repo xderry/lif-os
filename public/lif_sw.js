@@ -25,8 +25,16 @@ function sw_init_pre(){
     await self.clients.claim();
     await lif_sw.wait_activate;
   })()));
-  self.addEventListener("message", event=>lif_sw.on_message(event));
-  self.addEventListener('fetch', event=>lif_sw.on_fetch(event));
+  self.addEventListener("message", event=>{
+    if (!lif_sw.on_message)
+      console.error('sw message event before inited');
+    lif_sw.on_message(event);
+  });
+  self.addEventListener('fetch', event=>{
+    if (!lif_sw.on_fetch)
+      console.error('sw message event before inited');
+    lif_sw.on_fetch(event);
+  });
 }
 sw_init_pre();
 
@@ -283,8 +291,11 @@ const file_body_amd = f=>{
   let _exports = '';
   let uri_s = JSON.stringify(f.uri);
   file_parse(f);
-  f.exports_cjs.forEach(e=>_exports +=
-    `export const ${e} = mod.exports.${e};\n`);
+  f.exports_cjs.forEach(e=>{
+    if (e=='default')
+      return;
+    _exports += `export const ${e} = mod.exports.${e};\n`;
+  });
   _exports += `export default mod.exports;\n`;
   return f.body_amd = `
     let lb = window.lif.boot;
@@ -308,14 +319,18 @@ const file_body_cjs_shim = async f=>{
   let uri_s = JSON.stringify(f.uri);
   let _exports = '';
   console.log('call import('+f.uri+')');
-  let res = await app_chan.cmd('import', {url: '/.lif/npm.cjs/'+f.uri});
+  let npm_cjs_uri = '/.lif/npm.cjs/'+f.uri;
+  let res = await app_chan.cmd('import', {url: npm_cjs_uri});
   console.log('ret  import('+f.uri+')', res);
   f.exports_cjs_shim = res.exports;
-  f.exports_cjs_shim.forEach(e=>_exports +=
-    `export const ${e} = _exports.${e};\n`);
+  f.exports_cjs_shim.forEach(e=>{
+    if (e=='default')
+      return;
+    _exports += `export const ${e} = _exports.${e};\n`;
+  });
   return p.return(f.body_cjs_shim = `
-    import _export from ${JSON.stringify()};
-    let mod = await lb.require_cjs_shim(${uri_s});
+    import _export from ${JSON.stringify(npm_cjs_uri)};
+    //let mod = await lb.require_cjs_shim(${uri_s});
     export default _export;
     ${_exports}
   `);
@@ -380,10 +395,12 @@ let file_ast = f=>{
 
 let cjs_require_tr_await = f=>{
   let s = '', src = f.body, pos = 0;
-  for (let r in f.ast_requires){
+  for (let r of f.ast_requires){
     s += src.slice(pos, r.start);
-    if (r.type=='sync');
+    if (r.type=='sync'){
+      pos = r.start;
       continue;
+    }
     s += '(await require_async('+JSON.stringify(r.module)+'))';
     pos = r.end;
   }
@@ -395,9 +412,15 @@ const file_body_cjs = f=>{
   if (f.body_cjs)
     return f.body_cjs;
   let uri_s = JSON.stringify(f.uri);
+  console.log('cjs', f.uri, f);
   f.requires_cjs = cjs_require_scan(f.body);
-  f.body_cjs_tr = cjs_require_tr_await(f);
   file_ast(f);
+  let tr = cjs_require_tr_await(f);
+  let pre = '';
+  for (let r of f.ast_requires){
+    if (r.type=='sync')
+      pre += 'await require_async('+JSON.stringify(r.module)+');';
+  }
   return f.body_cjs = `
     let lb = window.lif.boot;
     let module = {exports: {}};
@@ -405,8 +428,9 @@ const file_body_cjs = f=>{
     let process = {env: {}};
     let require = module=>lb.require_cjs(${uri_s}, module);
     let require_async = async(module)=>await lb.require_single(${uri_s}, module);
+    ${pre}
     await (async()=>{
-    ${f.body_cjs_tr}
+    ${tr}
     })();
     export default module.exports;
   `;
@@ -650,16 +674,15 @@ async function _sw_fetch(event){
     } else
       body = f.body;
     log(`module ${uri} loaded ${f.uri}`);
-    return new Response(f.body, {headers: headers.js});
+    return new Response(body, {headers: headers.js});
   }
   if (v=str.prefix(path, '/.lif/npm.cjs/')){
     log('npm.cjs');
     let uri = v.rest;
     let f = await npm_file_load(log, uri);
-    f.cjs = true;
-    f.body = await file_body_cjs(f);
+    let tr = file_body_cjs(f);
     log(`module ${uri} loaded ${f.url}`);
-    return new Response(f.body, {headers: headers.js});
+    return new Response(tr, {headers: headers.js});
   }
   if (u.ext=='.css'){
     let response = await fetch(path);

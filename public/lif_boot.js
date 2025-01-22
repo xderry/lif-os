@@ -130,7 +130,7 @@ let import_do = async({url, opt})=>{
       ret.exports.push(i);
     return ret;
   } catch(err){
-    console.log('import_do('+url+') failed', err);
+    console.error('import_do('+url+') failed', err);
     throw err;
   }
 };
