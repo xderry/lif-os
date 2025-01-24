@@ -54,7 +54,7 @@ let importmap_gen = ()=>{
       return;
     }
     let {name, version, path} = v;
-    if (1 && !version && !path && (v = versions[name]))
+    if (!version && !path && (v = versions[name]))
       version = '@'+v.replace(/^[=^]/, '');
     let p = '/.lif/npm/'+name+version;
     imports[name] = p+'/';

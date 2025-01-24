@@ -130,11 +130,8 @@ let npm_static = {
       useImperativeHandle useInsertionEffect useLayoutEffect useMemo useReducer
       useRef useState useSyncExternalStore useTransition version`,
   },
-  /*
   'react/jsx-runtime': {type: 'mjs',
     url: 'https://unpkg.com/jsx-runtime@1.2.0/index.js'},
-  */
-  /*
   'react-dom': {type: 'amd',
     url: 'https://unpkg.com/react-dom@18/umd/react-dom.development.js',
     exports: qw`__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED
@@ -142,8 +139,6 @@ let npm_static = {
       unmountComponentAtNode unstable_batchedUpdates
       unstable_renderSubtreeIntoContainer version`,
   },
-  */
-  /*
   'canvas-confetti': {type: 'cjs',
     url: 'https://unpkg.com/canvas-confetti@1.9.3/src/confetti.js',
     exports: qw`reset create shapeFromPath shapeFromText`,
@@ -152,6 +147,7 @@ let npm_static = {
   //'/lif_next_dynamic.js': {body:
   //  'export function dynamic(import_fn){ return import_fn(); }'},
 
+  /*
   // browserify dummy nodes:
   'object.assign': {body:
     `export default function(){ return Object.assign; }`},
@@ -198,6 +194,7 @@ let npm_static = {
   'vm': {node: 'vm-browserify/index.js'},
   'zlib': {node: 'browserify-zlib/lib/index.js'},
   '_process': {node: 'process/browser.js'},
+  */
 };
 for (const [name, m] of OF(npm_static)){
   m.is_dir = path_is_dir(name);
@@ -255,15 +252,6 @@ let cjs_require_scan = function(js){
     paths.push(file);
   });
   return paths;
-};
-
-// require("file.js") -> (await require("file.js"))
-let cjs_require_tr_await_hack = (uri, js)=>{
-  let uri_s = JSON.stringify(uri);
-  // poor-man's require('module') scanner. in the future use a AST parser
-  return js.replace(/\brequire\s*\(\s*(['"])([^'"\\]+)(['"])\s*\)/g,
-    (match, q1, file, q2)=>
-    `(await require_async(${q1}${file}${q2}))`);
 };
 
 const file_parse = f=>{
@@ -505,35 +493,50 @@ let file_match = (file, match)=>{
 let npm_file_lookup = (pkg, file)=>{
   let f, v, res = [];
   let exports = pkg.exports;
+  let check_val = (dst, type)=>{
+    if (typeof dst!='string')
+      return;
+    if (!dst.includes('*')){
+      res.push(v = {file: dst, type});
+      return v;
+    }
+    let dfile = path_file(dst);
+    let ddir = path_dir(dst);
+    if (ddir.includes('*') || dfile!='*')
+      throw Error('module('+pkg.name+' dst match * ('+dst+') unsupported');
+    res.push(v = {file: dst.slice(dst.length-1)+dfile, type});
+    return v;
+  };
+  let patmatch = match=>{
+    if (!match.includes('*'))
+      return file_match(file, match);
+    let mfile = path_file(match);
+    let mdir = path_dir(match);
+    if (!file_match(file, mdir))
+      return;
+    if (mfile=='*')
+      return true;
+    throw Error('module('+pkg.name+' dst match * ('+match+') unsupported');
+  };
   if (typeof exports=='string')
     exports = {'.': exports};
-  for (f in exports){
-    v = exports[f];
-    if (f=='./')
+  for (let match in exports){
+    v = exports[match];
+    if (match=='./')
       continue;
-    if (f.includes('*'))
-      throw Error('module '+pkg.name+' match * ('+f+') unsupported');
-    if (!file_match(file, f))
+    if (!patmatch(match))
       continue;
-    if (typeof v=='string'){
-      res.push({file: v});
+    if (check_val(v, null))
       continue;
-    }
     if (typeof v!='object')
       continue;
     // default import require types
-    if (typeof v.import=='string'){
-      res.push({file: v.import, type: 'mjs'});
+    if (check_val(v.import, 'mjs'))
       continue;
-    }
-    if (typeof v.default=='string'){
-      res.push({file: v.default, type: 'cjs'});
+    if (check_val(v.default, 'cjs'))
       continue;
-    }
-    if (typeof v.require=='string'){
-      res.push({file: v.require, type: 'amd'});
+    if (check_val(v.require, 'amd'))
       continue;
-    }
   }
   if (res.length){
     let best = res[0];
@@ -544,11 +547,9 @@ let npm_file_lookup = (pkg, file)=>{
     return best;
   }
   if (file=='.'){
-    if (typeof pkg.module=='string')
-      return {file: pkg.module, type: 'mjs'};
-    if (typeof pkg.main=='string')
-      return {file: pkg.main, type: 'cjs'};
-    return {file: 'index.js', type: 'cjs'};
+    return check_val(pkg.module, 'mjs') ||
+      check_val(pkg.main, 'cjs') ||
+      check_val('index.js', 'cjs');
   }
   return {};
 };
