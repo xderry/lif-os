@@ -77,7 +77,7 @@ lif.boot = {
       throw Error('module '+module_id+' not loaded beforehand');
     if (!m.loaded)
       throw Error('module '+module_id+' not loaded completion');
-    return m.module;
+    return m.module.exports;
   },
   require_single: async(mod_self, module_id)=>{
     let m = modules[module_id];

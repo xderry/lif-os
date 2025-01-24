@@ -112,6 +112,7 @@ const npm_uri_parse = path=>{
   const m = RE_SCOPED.exec(path) || RE_NON_SCOPED.exec(path)
   return !m ? null : {name: m[1]|| '', version: m[2]|| '', path: m[3]||''};
 };
+const npm_modver = uri=>uri.name+(uri.version ? '@'+uri.version : '');
 let npm_cdn = ['https://unpkg.com'];
 let npm_pkg = {};
 let npm_file = {};
@@ -366,7 +367,11 @@ let ast_get_scope_type = path=>{
 let parser = Babel.packages.parser;
 let traverse = Babel.packages.traverse.default;
 let file_ast = f=>{
-  f.ast = parser.parse(f.body, {sourceType: 'module'});
+  try {
+    f.ast = parser.parse(f.body, {sourceType: 'module'});
+  } catch(err){
+    throw Error('fail parse('+f.uri+'):'+err);
+  }
   f.ast_exports = [];
   f.ast_requires = [];
   traverse(f.ast, {
@@ -418,7 +423,7 @@ const file_body_cjs = f=>{
   let pre = '';
   for (let r of f.ast_requires){
     if (r.type=='sync')
-      pre += 'await require_async('+JSON.stringify(r.module)+');';
+      pre += 'await require_async('+JSON.stringify(r.module)+');\n';
   }
   return f.body_cjs = `
     let lb = window.lif.boot;
@@ -480,7 +485,7 @@ async function fetch_try(log, urls){
       break;
   }
   if (response?.status!=200)
-    throw Error('failed fetch module '+urls+' for '+log.mod);
+    throw Error('failed fetch module '+urls[0]+' for '+log.mod);
   return {response, url, idx};
 }
 
@@ -543,6 +548,7 @@ let npm_file_lookup = (pkg, file)=>{
       return {file: pkg.module, type: 'mjs'};
     if (typeof pkg.main=='string')
       return {file: pkg.main, type: 'cjs'};
+    return {file: 'index.js', type: 'cjs'};
   }
   return {};
 };
@@ -550,7 +556,7 @@ async function npm_pkg_load(log, uri){
   let npm, _uri, mod_ver, npm_s;
   if (!(_uri = npm_uri_parse(uri)))
     throw Error('invalid module name '+uri);
-  mod_ver = _uri.name+_uri.version;
+  mod_ver = npm_modver(_uri);
   if (npm = npm_pkg[mod_ver])
     return await npm.wait;
   npm = npm_pkg[mod_ver] = {uri, _uri, mod_ver, wait: ewait()};
@@ -561,10 +567,9 @@ async function npm_pkg_load(log, uri){
     let ofile = _uri.path.replace(/^\//, '')||'.';
     let {file, type} = npm_file_lookup(npm.pkg, ofile);
     let nuri = '/'+npm.mod_ver+'/'+(file||ofile);
+    console.log('lookup', uri, file, type, nuri);
     if (!file)
       type = npm.type;
-    else if (file=='.')
-      throw Error('no module main '+uri);
     else if (file!=ofile)
       redirect = nuri;
     type ||= npm.type;
@@ -596,7 +601,7 @@ async function npm_pkg_load(log, uri){
       throw Error('invalid package.json '+msg);
     let main;
     if (!(main = pkg.module || pkg.exports?.['.'] || pkg.main))
-      throw Error('missing module main: '+uri+' in '+url);
+      main = 'index.js'; // throw Error('missing module main: '+uri+' in '+url);
     if (typeof main=='string')
       npm.main = main;
     else if (main.default)
