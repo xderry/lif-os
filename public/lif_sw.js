@@ -108,11 +108,11 @@ const uri_parse = (uri, base)=>{
 // parse-package-name
 const npm_uri_parse = path=>{
   const RE_SCOPED = /^(@[^\/]+\/[^@\/]+)(?:@([^\/]+))?(\/.*)?$/
-  const RE_NON_SCOPED = /^([^@\/]+)(?:@([^\/]+))?(\/.*)?$/
+  const RE_NON_SCOPED = /^([^@\/]+)(?:(@[^\/]+))?(\/.*)?$/
   const m = RE_SCOPED.exec(path) || RE_NON_SCOPED.exec(path)
   return !m ? null : {name: m[1]|| '', version: m[2]|| '', path: m[3]||''};
 };
-const npm_modver = uri=>uri.name+(uri.version ? '@'+uri.version : '');
+const npm_modver = uri=>uri.name+uri.version;
 let npm_cdn = ['https://unpkg.com'];
 let npm_pkg = {};
 let npm_file = {};
