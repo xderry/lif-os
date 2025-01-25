@@ -11,36 +11,6 @@ const ewait = ()=>{
   promise.throw = _throw;
   return promise;
 };
-const esleep = ms=>{
-  let p = ewait();
-  setTimeout(()=>p.return(), ms);
-  return p;
-};
-const eslow = (ms, arg)=>{
-  let done, timeout;
-  let p = (async()=>{
-    await esleep(ms);
-    timeout = true;
-    if (!done)
-      console.log('slow timeout('+ms+')', ...arg);
-  })();
-  eslow.set.add(p);
-  p.end = ()=>{
-    eslow.set.delete(p);
-    if (timeout && !done)
-      console.log('slow timeout('+ms+') done', ...arg);
-    done = true;
-  };
-  p.print = ()=>console.log('slow print', ...arg);
-  return p;
-};
-eslow.set = new Set();
-eslow.print = ()=>{
-  console.log('eslow print');
-  for (let p of eslow.set)
-    p.print();
-}
-self.esb = eslow;
 
 lif_sw = {
   on_message: null,
@@ -107,7 +77,7 @@ let import_module = async(url)=>{
 let Babel = await import_module('https://unpkg.com/@babel/standalone@7.26.4/babel.js');
 let util = await import_module('./lif_util.js');
 let {postmessage_chan, str, OF, path_ext, path_file, path_dir, path_is_dir,
-  url_parse, uri_parse, npm_uri_parse} = util;
+  url_parse, uri_parse, npm_uri_parse, esleep, eslow} = util;
 let {qw} = str;
 
 const npm_modver = uri=>uri.name+uri.version;
