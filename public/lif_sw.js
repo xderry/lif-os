@@ -491,8 +491,8 @@ let file_match = (file, match)=>{
 // parse package.exports
 // https://webpack.js.org/guides/package-exports/
 let npm_file_lookup = (pkg, file)=>{
-  let f, v, res = [];
-  let check_val = (dst, type)=>{
+  let check_val = (res, dst, type)=>{
+    let v;
     if (typeof dst!='string')
       return;
     if (!dst.includes('*')){
@@ -517,9 +517,9 @@ let npm_file_lookup = (pkg, file)=>{
       return true;
     throw Error('module('+pkg.name+' dst match * ('+match+') unsupported');
   };
-  let parse_val = v=>{
+  let parse_val = (res, v)=>{
     if (typeof v=='string')
-      return check_val(v, null);
+      return check_val(res, v, null);
     if (typeof v!='object')
       return;
     if (Array.isArray(v)){
@@ -529,18 +529,17 @@ let npm_file_lookup = (pkg, file)=>{
       }
       return;
     }
-    return check_val(v.import, 'mjs') ||
-      check_val(v.default, 'cjs') ||
-      check_val(v.require, 'amd');
+    return check_val(res, v.import, 'mjs') ||
+      check_val(res, v.default, 'cjs') ||
+      check_val(res, v.require, 'amd');
   };
-  let parse = val=>{
-    let v;
-    res = [];
+  let parse_section = val=>{
+    let v, res = [];
     for (let match in val){
       v = val[match];
       if (!patmatch(match))
         continue;
-      parse_val(v);
+      parse_section(v);
     }
     if (res.length)
       return;
@@ -551,24 +550,30 @@ let npm_file_lookup = (pkg, file)=>{
     });
     return best;
   }
+  let parse_pkg = ()=>{
+    let exports = pkg.exports, v;
+    if (typeof exports=='string')
+      exports = {'.': exports};
+    if (v = parse_section(exports))
+      return v;
+    if (file=='.'){
+      return check_val([], pkg.module, 'mjs') ||
+        check_val([], pkg.main, 'cjs') ||
+        check_val([], 'index.js', 'cjs');
+    }
+    if (v = parse_section(pkg.browser))
+      return v;
+  };
   // start package.json lookup
-  let exports = pkg.exports;
-  if (typeof exports=='string')
-    exports = {'.': exports};
-  if (v = parse(exports))
-    return v;
-  if (file=='.'){
-    return check_val(pkg.module, 'mjs') ||
-      check_val(pkg.main, 'cjs') ||
-      check_val('index.js', 'cjs');
-  }
-  if (v = parse(pkg.browser))
-    return v;
-  let mfile = path_file(file);
-  if (0 && mfile && !mfile.includes('.'))
-    return {file: mfile+'.js', type: null};
-  return {};
+  let v = parse_pkg();
+  if (!v)
+    v = {file};
+  let mfile = path_file(v.file);
+  if (mfile && !mfile.includes('.'))
+    v.file = mfile+'.js';
+  return v;
 };
+
 async function npm_pkg_load(log, uri){
   let npm, _uri, mod_ver, npm_s;
   if (!(_uri = npm_uri_parse(uri)))
@@ -631,7 +636,8 @@ async function npm_file_load(log, uri){
     return await file.wait;
   file = npm_file[uri] = {uri, _uri, wait: ewait()};
   file.npm = await npm_pkg_load(log, uri);
-  let {nuri, type, redirect} = file.npm.file_lookup(uri);
+  let v;
+  let {nuri, type, redirect} = v = file.npm.file_lookup(uri);
   file.nuri = nuri;
   file.url = npm_cdn[0]+nuri;
   file.type = type;

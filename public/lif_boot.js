@@ -1,6 +1,6 @@
 let lif = window.lif = {};
 import util from './lif_util.js';
-let {ewait, esleep, eslow, postmessage_chan} = util;
+let {ewait, esleep, eslow, postmessage_chan, path_file} = util;
 
 let modules = {};
 let lb;
