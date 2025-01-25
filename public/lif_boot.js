@@ -1,6 +1,6 @@
 let lif = window.lif = {};
 import util from './lif_util.js';
-let {ewait, esleep, eslow, postmessage_chan, path_file} = util;
+let {ewait, esleep, eslow, postmessage_chan, path_file, npm_uri_parse} = util;
 
 let modules = {};
 let lb;
@@ -90,9 +90,12 @@ lif.boot = {
     let slow;
     try {
       let uri = lb.module_get_uri(mod_self, module_id);
-      let ufile = path_file(uri);
+      /*
+      let _uri = npm_uri_parse(uri);
+      let ufile = path_file(_uri,path);
       if (!ufile.includes('.'))
         uri += '.js';
+       */
       //console.log('require_single', mod_self, module_id, uri);
       slow = eslow(5000, ['import('+module_id+') timeout', uri]);
       m.mod = await import(uri);
