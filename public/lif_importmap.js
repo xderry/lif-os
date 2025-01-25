@@ -39,7 +39,7 @@ let importmap_gen = ()=>{
     frameer-motion motion-dom styled-components stylis
     stylis-rule-sheet @emotion/is-prop-valid react-is memoize-one prop-types
     merge-anything framer-motion motion-utils tslib shallowequal ini idb
-    browserfs`);
+    browserfs is-arguments`);
   // core node modules
   a.push(...qw`path assert buffer child_process cluster console
     constants crypto dgram dns domain events fs http https http2 inspector

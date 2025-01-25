@@ -11,6 +11,36 @@ const ewait = ()=>{
   promise.throw = _throw;
   return promise;
 };
+const esleep = ms=>{
+  let p = ewait();
+  setTimeout(()=>p.return(), ms);
+  return p;
+};
+const eslow = (ms, arg)=>{
+  let done, timeout;
+  let p = (async()=>{
+    await esleep(ms);
+    timeout = true;
+    if (!done)
+      console.log('slow timeout('+ms+')', ...arg);
+  })();
+  eslow.set.add(p);
+  p.end = ()=>{
+    eslow.set.delete(p);
+    if (timeout && !done)
+      console.log('slow timeout('+ms+') done', ...arg);
+    done = true;
+  };
+  p.print = ()=>console.log('slow print', ...arg);
+  return p;
+};
+eslow.set = new Set();
+eslow.print = ()=>{
+  console.log('eslow print');
+  for (let p of eslow.set)
+    p.print();
+}
+self.esb = eslow;
 
 lif_sw = {
   on_message: null,
@@ -32,7 +62,7 @@ function sw_init_pre(){
   });
   self.addEventListener('fetch', event=>{
     if (!lif_sw.on_fetch)
-      console.error('sw message event before inited');
+      console.error('sw message fetch('+event.request.url+') event before inited');
     lif_sw.on_fetch(event);
   });
 }
@@ -63,57 +93,27 @@ let import_module = async(url)=>{
     `;
   } catch(err){
     console.error('import('+url+') failed', err);
-    mod.wait.throw(err);
-    throw err;
+    throw mod.wait.throw(err);
   }
   try {
     mod.exports = await eval(mod.script);
     return mod.wait.return(mod.exports);
   } catch(err){
-    console.error('import('+url+') failed eval', err, err.stack);
-    mod.wait.throw(err);
-    throw err;
+    console.error('import('+url+') failed eval', err, err?.stack);
+    throw mod.wait.throw(err);
   }
 };
 
 let Babel = await import_module('https://unpkg.com/@babel/standalone@7.26.4/babel.js');
 let util = await import_module('./lif_util.js');
-let {postmessage_chan, str, OF} = util;
+let {postmessage_chan, str, OF, path_ext, path_file, path_dir, path_is_dir,
+  url_parse, uri_parse, npm_uri_parse} = util;
 let {qw} = str;
 
-// path.js
-const path_ext = path=>path.match(/\.[^./]*$/)?.[0];
-const path_file = path=>path.match(/(^|\/)?([^/]*)$/)?.[2];
-const path_dir = path=>path.slice(0, path.length-path_file(path).length);
-const path_is_dir = path=>path.endsWith('/');
-const url_parse = (url, base)=>{
-  const u = URL.parse(url, base);
-  if (!u)
-    throw Error('cannot parse url: '+url);
-  u.path = u.pathname;
-  u.ext = path_ext(u.path);
-  u.file = path_file(u.path);
-  u.dir = path_dir(u.path);
-  return u;
-};
-const uri_parse = (uri, base)=>{
-  base ||= '';
-  if (base && base[0]!='/')
-    throw Error('invalid uri '+base);
-  let u = {...url_parse(uri, 'http://x'+base)};
-  u.host = u.hostname = u.origin = u.href = u.protocol = '';
-  return u;
-};
-
-// parse-package-name
-const npm_uri_parse = path=>{
-  const RE_SCOPED = /^(@[^\/]+\/[^@\/]+)(?:@([^\/]+))?(\/.*)?$/
-  const RE_NON_SCOPED = /^([^@\/]+)(?:(@[^\/]+))?(\/.*)?$/
-  const m = RE_SCOPED.exec(path) || RE_NON_SCOPED.exec(path)
-  return !m ? null : {name: m[1]|| '', version: m[2]|| '', path: m[3]||''};
-};
 const npm_modver = uri=>uri.name+uri.version;
-let npm_cdn = ['https://unpkg.com'];
+let npm_cdn = ['https://cdn.jsdelivr.net/npm',
+  //'https://unpkg.com',
+];
 let npm_pkg = {};
 let npm_file = {};
 
@@ -301,16 +301,16 @@ const file_body_amd = f=>{
   `;
 };
 
-const file_body_cjs_shim = async f=>{
+const file_body_cjs_shim = async(log, f)=>{
   if (f.wait_body_cjs)
     return await f.wait_body_cjs;
   let p = f.wait_body_cjs = ewait();
   let uri_s = JSON.stringify(f.uri);
   let _exports = '';
-  console.log('call import('+f.uri+')');
+  log('call import('+f.uri+')');
   let npm_cjs_uri = '/.lif/npm.cjs/'+f.uri;
   let res = await app_chan.cmd('import', {url: npm_cjs_uri});
-  console.log('ret  import('+f.uri+')', res);
+  log('ret  import('+f.uri+')', res);
   f.exports_cjs_shim = res.exports;
   f.exports_cjs_shim.forEach(e=>{
     if (e=='default')
@@ -492,7 +492,6 @@ let file_match = (file, match)=>{
 // https://webpack.js.org/guides/package-exports/
 let npm_file_lookup = (pkg, file)=>{
   let f, v, res = [];
-  let exports = pkg.exports;
   let check_val = (dst, type)=>{
     if (typeof dst!='string')
       return;
@@ -518,27 +517,33 @@ let npm_file_lookup = (pkg, file)=>{
       return true;
     throw Error('module('+pkg.name+' dst match * ('+match+') unsupported');
   };
-  if (typeof exports=='string')
-    exports = {'.': exports};
-  for (let match in exports){
-    v = exports[match];
-    if (match=='./')
-      continue;
-    if (!patmatch(match))
-      continue;
-    if (check_val(v, null))
-      continue;
+  let parse_val = v=>{
+    if (typeof v=='string')
+      return check_val(v, null);
     if (typeof v!='object')
-      continue;
-    // default import require types
-    if (check_val(v.import, 'mjs'))
-      continue;
-    if (check_val(v.default, 'cjs'))
-      continue;
-    if (check_val(v.require, 'amd'))
-      continue;
-  }
-  if (res.length){
+      return;
+    if (Array.isArray(v)){
+      for (let e of v){
+        if (parse_val(e))
+          return;
+      }
+      return;
+    }
+    return check_val(v.import, 'mjs') ||
+      check_val(v.default, 'cjs') ||
+      check_val(v.require, 'amd');
+  };
+  let parse = val=>{
+    let v;
+    res = [];
+    for (let match in val){
+      v = val[match];
+      if (!patmatch(match))
+        continue;
+      parse_val(v);
+    }
+    if (res.length)
+      return;
     let best = res[0];
     res.forEach(r=>{
       if (r.file.length > best.file.length)
@@ -546,11 +551,22 @@ let npm_file_lookup = (pkg, file)=>{
     });
     return best;
   }
+  // start package.json lookup
+  let exports = pkg.exports;
+  if (typeof exports=='string')
+    exports = {'.': exports};
+  if (v = parse(exports))
+    return v;
   if (file=='.'){
     return check_val(pkg.module, 'mjs') ||
       check_val(pkg.main, 'cjs') ||
       check_val('index.js', 'cjs');
   }
+  if (v = parse(pkg.browser))
+    return v;
+  let mfile = path_file(file);
+  if (0 && mfile && !mfile.includes('.'))
+    return {file: mfile+'.js', type: null};
   return {};
 };
 async function npm_pkg_load(log, uri){
@@ -568,7 +584,6 @@ async function npm_pkg_load(log, uri){
     let ofile = _uri.path.replace(/^\//, '')||'.';
     let {file, type} = npm_file_lookup(npm.pkg, ofile);
     let nuri = '/'+npm.mod_ver+'/'+(file||ofile);
-    console.log('lookup', uri, file, type, nuri);
     if (!file)
       type = npm.type;
     else if (file!=ofile)
@@ -600,21 +615,11 @@ async function npm_pkg_load(log, uri){
       throw Error('empty package.json '+msg);
     if (!pkg.version)
       throw Error('invalid package.json '+msg);
-    let main;
-    if (!(main = pkg.module || pkg.exports?.['.'] || pkg.main))
-      main = 'index.js'; // throw Error('missing module main: '+uri+' in '+url);
-    if (typeof main=='string')
-      npm.main = main;
-    else if (main.default)
-      npm.main = main.default;
-    else
-      throw Error('cannot parse main '+JSON.stringify(main)+msg);
     let {file, type} = npm_file_lookup(npm.pkg, '.');
     npm.type = type;
     return npm.wait.return(npm);
   } catch(err){
-    npm.wait.throw(err);
-    throw(err);
+    throw npm.wait.throw(err);
   }
 }
 
@@ -646,7 +651,7 @@ async function _sw_fetch(event){
   let external = u.origin!=self.location.origin;
   let log_mod = url+(ref && ref!=u.origin+'/' ? ' ref '+ref : '');
   let path = u.path;
-  let log = function(){ if (!url.includes('')) return; console.log(url, ...arguments); };
+  let log = function(){ if (!url.includes('fs_stats')) return; console.log(url, ...arguments); };
   log.l = log;
   log.mod = log_mod;
   if (request.method!='GET')
@@ -673,7 +678,7 @@ async function _sw_fetch(event){
     else if (f.type=='amd')
       body = file_body_amd(f);
     else if (f.type=='cjs' || !f.type){
-      body = await file_body_cjs_shim(f);
+      body = await file_body_cjs_shim(log, f);
     } else
       body = f.body;
     log(`module ${uri} loaded ${f.uri}`);
@@ -745,9 +750,14 @@ async function _sw_fetch(event){
 }
 
 async function sw_fetch(event){
+  let slow;
   try {
-    return await _sw_fetch(event);
+    slow = eslow(5000, ['_sw_fetch timeout', event.request.url]);
+    let res = await _sw_fetch(event);
+    slow.end();
+    return res;
   } catch (err){
+    slow.end();
     console.error('ServiceWorker sw_fetch err', err);
     return new Response(''+err, {status: 500, statusText: ''+err});
   }

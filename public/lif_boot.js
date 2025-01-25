@@ -1,6 +1,6 @@
 let lif = window.lif = {};
 import util from './lif_util.js';
-let {ewait, postmessage_chan} = util;
+let {ewait, esleep, eslow, postmessage_chan} = util;
 
 let modules = {};
 let lb;
@@ -52,8 +52,7 @@ lif.boot = {
         let dep = deps[i], v;
         switch (dep){
         case 'require':
-          v = function(deps, cb){
-            return lb.require_amd(mod_self, deps, cb); };
+          v = (deps, cb)=>lb.require_amd(mod_self, deps, cb);
           break;
         case 'exports': v = m.module.exports; break;
         case 'module': v = m.module; break;
@@ -88,11 +87,18 @@ lif.boot = {
     let resolve, promise = new Promise(res=>resolve = res);
     m = modules[module_id] = {module_id, deps: [], promise,
       loaded: false, module: {exports: {}}};
+    let slow;
     try {
       let uri = lb.module_get_uri(mod_self, module_id);
-      console.log('require_single', mod_self, module_id, uri);
+      let ufile = path_file(uri);
+      if (!ufile.includes('.'))
+        uri += '.js';
+      //console.log('require_single', mod_self, module_id, uri);
+      slow = eslow(5000, ['import('+module_id+') timeout', uri]);
       m.mod = await import(uri);
+      slow.end();
     } catch(err){
+      slow.end();
       console.error('import('+module_id+') failed fetch from '+mod_self, err);
       throw err;
     }
@@ -111,12 +117,13 @@ lif.boot = {
   },
   module_get_uri: (mod_self, module_id)=>{
     let dir = module_id.split('/')[0];
+    let base = '/.lif/npm/'+mod_self;
+    let module = '/.lif/npm/'+module_id;
     if (dir=='.' || dir=='..' || dir==''){
-      let prefix = 'http://x/';
-      let uri = URL.parse(module_id, prefix+mod_self);
-      return !uri ? module_id : uri.pathname.slice(1);
+      let uri = URL.parse(module_id, 'http://xxx'+base);
+      return !uri ? module : uri.pathname;
     }
-    return module_id;
+    return module;
   },
 };
 lb = lif.boot;
@@ -127,11 +134,13 @@ window.require = lb.require_amd;
 let import_do = async({url, opt})=>{
   try {
     let ret = {};
-    console.log('import_do('+url+')');
+    // console.log('import_do('+url+')');
     let exports = await import(url, opt);
     ret.exports = [];
-    for (let i in exports?.default)
-      ret.exports.push(i);
+    if (typeof exports=='object' && !Array.isArray(exports.default)){
+      for (let i in exports.default)
+        ret.exports.push(i);
+    }
     return ret;
   } catch(err){
     console.error('import_do('+url+') failed', err);
