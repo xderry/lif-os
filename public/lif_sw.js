@@ -277,10 +277,10 @@ const file_body_cjs_shim = async(log, f)=>{
   let p = f.wait_body_cjs = ewait();
   let uri_s = JSON.stringify(f.uri);
   let _exports = '';
-  log('call import('+f.uri+')');
   let npm_cjs_uri = '/.lif/npm.cjs/'+f.uri;
+  log('call import('+npm_cjs_uri+')');
   let res = await app_chan.cmd('import', {url: npm_cjs_uri});
-  log('ret  import('+f.uri+')', res);
+  log('ret  import('+npm_cjs_uri+')', res);
   f.exports_cjs_shim = res.exports;
   f.exports_cjs_shim.forEach(e=>{
     if (e=='default')
@@ -308,15 +308,17 @@ const file_body_global = f=>{
 
 let ast_get_scope_type = path=>{
   for (; path; path=path.parentPath){
+    if (path.type=='TryStatement')
+      return 'try';
     let b = path.scope.block;
-    if (b.async)
-      return 'async';
     if (b.type=='FunctionExpression' ||
       b.type=='ArrowFunctionExpression' ||
       b.type=='FunctionDeclaration')
     {
       return b.async ? 'async' : 'sync';
     }
+    if (b.type=='CatchClause')
+      return 'catch';
     if (b.type=='Program')
       return 'program';
   }
@@ -360,7 +362,7 @@ let cjs_require_tr_await = f=>{
   let s = '', src = f.body, pos = 0;
   for (let r of f.ast_requires){
     s += src.slice(pos, r.start);
-    if (r.type=='sync'){
+    if (r.type=='sync' || r.type=='try'){
       pos = r.start;
       continue;
     }
@@ -449,12 +451,14 @@ async function fetch_try(log, urls){
 
 // TODO support longer matches first /a/b/c matches before /a/b
 let file_match = (file, match)=>{
-  let v;
-  if (!str.prefix(file, './'))
+  let v, f = file, m = match;
+  while (v=str.prefix(f, './'))
+    f = v.rest;
+  while (v=str.prefix(m, './'))
+    m = v.rest;
+  if (!(v=str.prefix(f, m)))
     return;
-  if (!(v=str.prefix(file, match)))
-    return;
-  if (v.rest && !path_is_dir(file))
+  if (v.rest && !path_is_dir(f))
     return;
   return true;
 };
@@ -509,11 +513,11 @@ let npm_file_lookup = (pkg, file)=>{
       v = val[match];
       if (!patmatch(match))
         continue;
-      parse_section(v);
+      parse_val(res, v);
     }
-    if (res.length)
-      return;
     let best = res[0];
+    if (!best)
+      return;
     res.forEach(r=>{
       if (r.file.length > best.file.length)
         best = r;
@@ -535,9 +539,7 @@ let npm_file_lookup = (pkg, file)=>{
       return v;
   };
   // start package.json lookup
-  let v = parse_pkg();
-  if (!v)
-    v = {file};
+  let v = parse_pkg()||{file};
   let mfile = path_file(v.file);
   if (mfile && !mfile.includes('.'))
     v.file += '.js';
@@ -559,6 +561,7 @@ async function npm_pkg_load(log, uri){
     let ofile = _uri.path.replace(/^\//, '')||'.';
     let {file, type} = npm_file_lookup(npm.pkg, ofile);
     let nuri = '/'+npm.mod_ver+'/'+(file||ofile);
+    if (nuri.includes(''))
     if (!file)
       type = npm.type;
     else if (file!=ofile)
@@ -627,7 +630,7 @@ async function _sw_fetch(event){
   let external = u.origin!=self.location.origin;
   let log_mod = url+(ref && ref!=u.origin+'/' ? ' ref '+ref : '');
   let path = u.path;
-  let log = function(){ if (!url.includes('fs_stats')) return; console.log(url, ...arguments); };
+  let log = function(){ if (!url.includes(' none ')) return; console.log(url, ...arguments); };
   log.l = log;
   log.mod = log_mod;
   if (request.method!='GET')
@@ -657,7 +660,7 @@ async function _sw_fetch(event){
       body = await file_body_cjs_shim(log, f);
     } else
       body = f.body;
-    log(`module ${uri} loaded ${f.uri}`);
+    log(`module ${uri} served ${f.uri}`);
     return new Response(body, {headers: headers.js});
   }
   if (v=str.prefix(path, '/.lif/npm.cjs/')){
@@ -665,7 +668,7 @@ async function _sw_fetch(event){
     let uri = v.rest;
     let f = await npm_file_load(log, uri);
     let tr = file_body_cjs(f);
-    log(`module ${uri} loaded ${f.url}`);
+    log(`module ${uri} served ${f.url}`);
     return new Response(tr, {headers: headers.js});
   }
   if (u.ext=='.css'){
@@ -697,7 +700,7 @@ async function _sw_fetch(event){
     if (response?.status!=200)
       return response;
     u = url_parse(__url);
-    log.l('babel loaded module src '+__url);
+    log.l('babel fetched module src '+__url);
     let body = await response.text();
     let opt = {presets: [], plugins: [], sourceMaps: true,
       generatorOpts: {'importAttributesKeyword': 'with'}}
@@ -728,7 +731,7 @@ async function _sw_fetch(event){
 async function sw_fetch(event){
   let slow;
   try {
-    slow = eslow(5000, ['_sw_fetch timeout', event.request.url]);
+    slow = eslow(5000, ['_sw_fetch', event.request.url]);
     let res = await _sw_fetch(event);
     slow.end();
     return res;

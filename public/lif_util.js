@@ -20,21 +20,24 @@ const esleep = ms=>{
 exports.esleep = esleep;
 
 const eslow = (ms, arg)=>{
-  let done, timeout;
+  let done, timeout, at_end;
   let p = (async()=>{
     await esleep(ms);
     timeout = true;
     if (!done)
-      console.error('slow timeout('+ms+')', ...arg);
+      console.error('slow '+ms+' passed', ...arg);
   })();
   eslow.set.add(p);
+  p.now = Date.now();
   p.end = ()=>{
+    at_end ||= Date.now();
     eslow.set.delete(p);
     if (timeout && !done)
-      console.error('slow timeout('+ms+') done', ...arg);
+      console.error('slow completed '+(Date.now()-p.now)+'>'+ms, ...arg);
     done = true;
   };
-  p.print = ()=>console.log('slow('+ms+') print', ...arg);
+  p.print = ()=>console.log('slow '+(done?'completed ':'')+ms
+    +' passed '+((at_end||Date.now())-p.now), ...arg);
   return p;
 };
 eslow.set = new Set();
@@ -172,6 +175,15 @@ const npm_uri_parse = path=>{
   return !m ? null : {name: m[1]|| '', version: m[2]|| '', path: m[3]||''};
 };
 exports.npm_uri_parse = npm_uri_parse;
+
+// useful debugging script: stop on first time
+//{ if (file.includes('getProto') && match.includes('getPro') && !self._x_) {self._x_=1; debugger;} }
+const _debugger = (stop)=>{
+  if (stop && !self._x_){
+    self._x_=1;
+    debugger; // eslint-disable-line no-debugger
+  }
+};
 
 export default exports;
 

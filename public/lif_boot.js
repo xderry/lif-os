@@ -90,7 +90,7 @@ lif.boot = {
     let slow;
     try {
       let uri = lb.module_get_uri(mod_self, module_id);
-      slow = eslow(5000, ['import('+module_id+') timeout', uri]);
+      slow = eslow(5000, ['import('+module_id+')', uri]);
       m.mod = await import(uri);
       slow.end();
     } catch(err){
@@ -128,10 +128,14 @@ window.define = lb.define_amd;
 window.require = lb.require_amd;
 
 let import_do = async({url, opt})=>{
+  let slow;
   try {
     let ret = {};
-    // console.log('import_do('+url+')');
+    //console.log('import_do('+url+')');
+    slow = eslow(5000, ['import_do', url]);
     let exports = await import(url, opt);
+    slow.end();
+    //console.log('import_DONE('+url+')');
     ret.exports = [];
     if (typeof exports=='object' && !Array.isArray(exports.default)){
       for (let i in exports.default)
@@ -139,6 +143,7 @@ let import_do = async({url, opt})=>{
     }
     return ret;
   } catch(err){
+    slow.end();
     console.error('import_do('+url+') failed', err);
     throw err;
   }
