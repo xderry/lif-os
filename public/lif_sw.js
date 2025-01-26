@@ -1,5 +1,4 @@
 /*global importScripts*/ // ServiceWorkerGlobalScope
-// service worker must register handlers on first run (not async)
 let lif_sw;
 const ewait = ()=>{
   let _return, _throw;
@@ -18,6 +17,7 @@ lif_sw = {
   wait_activate: ewait(),
 };
 
+// service worker must register handlers on first run (not async)
 function sw_init_pre(){
   // this is needed to activate the worker immediately without reload
   // @see https://developers.google.com/web/fundamentals/primers/service-workers/lifecycle#clientsclaim
@@ -503,7 +503,8 @@ let npm_file_lookup = (pkg, file)=>{
       }
       return;
     }
-    return check_val(res, v.import, 'mjs') ||
+    return check_val(res, v.module, 'mjs') ||
+      check_val(res, v.import, 'mjs') ||
       check_val(res, v.default, 'cjs') ||
       check_val(res, v.require, 'amd');
   };

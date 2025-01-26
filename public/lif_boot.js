@@ -7,10 +7,10 @@ let lb;
 let sw_chan;
 
 lif.boot = {
-  define_amd: function(module_id, args){
-    var _module_id /* ignored */, deps, factory;
-    var deps_default = ["require", "exports", "module"];
-    var exports_val; /* not supported */
+  define_amd: function(module_id, _imports, _factory){
+    let _module_id /* ignored */, deps, factory, args = arguments;
+    let deps_default = ["require", "exports", "module"];
+    let exports_val; /* not supported */
     if (args.length==1){
       factory = args[0];
       deps = deps_default;
@@ -21,8 +21,10 @@ lif.boot = {
       } else
         deps = args[0];
       factory = args[1];
-    } else
+    } else if (args.length==3)
       [_module_id, deps, factory] = args;
+    else
+      throw Error('define() invalid num args');
     if (typeof factory!='function'){
       throw Error('define() non-function factory not supported');
       exports_val = factory;

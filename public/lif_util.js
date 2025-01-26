@@ -20,12 +20,13 @@ const esleep = ms=>{
 exports.esleep = esleep;
 
 const eslow = (ms, arg)=>{
+  let active = false;
   let done, timeout, at_end;
   let p = (async()=>{
     await esleep(ms);
     timeout = true;
     if (!done)
-      console.error('slow '+ms+' passed', ...arg);
+      active && console.error('slow '+ms+' passed', ...arg);
   })();
   eslow.set.add(p);
   p.now = Date.now();
@@ -33,10 +34,10 @@ const eslow = (ms, arg)=>{
     at_end ||= Date.now();
     eslow.set.delete(p);
     if (timeout && !done)
-      console.error('slow completed '+(Date.now()-p.now)+'>'+ms, ...arg);
+      active && console.error('slow completed '+(Date.now()-p.now)+'>'+ms, ...arg);
     done = true;
   };
-  p.print = ()=>console.log('slow '+(done?'completed ':'')+ms
+  p.print = ()=>active && console.log('slow '+(done?'completed ':'')+ms
     +' passed '+((at_end||Date.now())-p.now), ...arg);
   return p;
 };
