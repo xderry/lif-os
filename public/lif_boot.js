@@ -90,13 +90,6 @@ lif.boot = {
     let slow;
     try {
       let uri = lb.module_get_uri(mod_self, module_id);
-      /*
-      let _uri = npm_uri_parse(uri);
-      let ufile = path_file(_uri,path);
-      if (!ufile.includes('.'))
-        uri += '.js';
-       */
-      //console.log('require_single', mod_self, module_id, uri);
       slow = eslow(5000, ['import('+module_id+') timeout', uri]);
       m.mod = await import(uri);
       slow.end();

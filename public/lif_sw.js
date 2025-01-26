@@ -540,7 +540,7 @@ let npm_file_lookup = (pkg, file)=>{
     v = {file};
   let mfile = path_file(v.file);
   if (mfile && !mfile.includes('.'))
-    v.file = mfile+'.js';
+    v.file += '.js';
   return v;
 };
 
