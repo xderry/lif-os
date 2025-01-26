@@ -477,7 +477,7 @@ let npm_file_lookup = (pkg, file)=>{
     let ddir = path_dir(dst);
     if (ddir.includes('*') || dfile!='*')
       throw Error('module('+pkg.name+' dst match * ('+dst+') unsupported');
-    res.push(v = {file: dst.slice(dst.length-1)+dfile, type});
+    res.push(v = {file: dst.slice(0, -1)+dfile, type});
     return v;
   };
   let patmatch = match=>{

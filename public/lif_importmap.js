@@ -37,7 +37,7 @@ let importmap_gen = ()=>{
   a.push(...qw`react@18.3.1 react-dom@18.3.1 scheduler`);
   a.push(...qw`canvas-confetti
     frameer-motion motion-dom styled-components stylis
-    stylis-rule-sheet @emotion/is-prop-valid react-is memoize-one prop-types
+    stylis-rule-sheet @emotion/. react-is memoize-one prop-types
     merge-anything framer-motion motion-utils tslib shallowequal ini idb
     browserfs is-arguments`);
   // core node modules
@@ -54,6 +54,8 @@ let importmap_gen = ()=>{
       return;
     }
     let {name, version, path} = v;
+    if (name.endsWith('/.'))
+      name = name.slice(0, -2);
     if (!version && !path && (v = versions[name]))
       version = '@'+v.replace(/^[=^]/, '');
     let p = '/.lif/npm/'+name+version;
