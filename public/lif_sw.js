@@ -262,7 +262,7 @@ const file_body_amd = f=>{
       return lb.define_amd(${uri_s}, arguments); };
     define.amd = {};
     let require = function(deps, cb){
-      return lb.require_amd(${uri_s}, deps, cb); };
+      return lb.require_amd(${uri_s}, [deps, cb]); };
     (()=>{
     ${f.body}
     })();
@@ -289,7 +289,6 @@ const file_body_cjs_shim = async(log, f)=>{
   });
   return p.return(f.body_cjs_shim = `
     import _export from ${JSON.stringify(npm_cjs_uri)};
-    //let mod = await lb.require_cjs_shim(${uri_s});
     export default _export;
     ${_exports}
   `);
@@ -392,6 +391,9 @@ const file_body_cjs = f=>{
     let process = {env: {}};
     let require = module=>lb.require_cjs(${uri_s}, module);
     let require_async = async(module)=>await lb.require_single(${uri_s}, module);
+    let define = function(id, deps, factory){
+      return lb.define_amd(${uri_s}, arguments, module); };
+    define.amd = {};
     ${pre}
     await (async()=>{
     ${tr}
@@ -709,8 +711,11 @@ async function _sw_fetch(event){
       opt.presets.push('typescript');
       opt.filename = u.file;
     }
-    if (u.ext=='.tsx' || u.ext=='.jsx')
+    let react;
+    if (u.ext=='.tsx' || u.ext=='.jsx'){
+      react = true;
       opt.presets.push('react');
+    }
     let res;
     try {
       res = await Babel.transform(body, opt);
@@ -718,6 +723,8 @@ async function _sw_fetch(event){
       console.error('babel FAILED: '+path, err);
       throw err;
     }
+    if (react)
+      res.code = 'import React from "react";\n'+res.code;
     return new Response(res.code, {headers: headers.js});
   }
   if (v=str.prefix(path, '/.lif/pkgroot/')){

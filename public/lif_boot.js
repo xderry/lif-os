@@ -7,8 +7,8 @@ let lb;
 let sw_chan;
 
 lif.boot = {
-  define_amd: function(module_id, _imports, _factory){
-    let _module_id /* ignored */, deps, factory, args = arguments;
+  define_amd: function(mod_self, args, module){
+    let module_id /* ignored */, deps, factory;
     let deps_default = ["require", "exports", "module"];
     let exports_val; /* not supported */
     if (args.length==1){
@@ -16,13 +16,13 @@ lif.boot = {
       deps = deps_default;
     } else if (args.length==2){
       if (typeof args[0]=='string'){
-        _module_id = args[0];
+        module_id = args[0];
         deps = deps_default;
       } else
         deps = args[0];
       factory = args[1];
     } else if (args.length==3)
-      [_module_id, deps, factory] = args;
+      [module_id, deps, factory] = args;
     else
       throw Error('define() invalid num args');
     if (typeof factory!='function'){
@@ -30,21 +30,21 @@ lif.boot = {
       exports_val = factory;
       factory = undefined;
     }
-    if (modules[module_id])
-      throw Error('define('+module_id+') already defined');
+    if (modules[mod_self])
+      throw Error('define('+mod_self+') already defined');
     let promise = ewait();
-    let m = modules[module_id] = {module_id, deps, factory, loaded: false,
-      promise, module: {exports: {}}};
-    lb.require_amd(module_id, deps, function(...deps){
+    let m = modules[mod_self] = {mod_self, deps, factory, loaded: false,
+      promise, module: module||{exports: {}}};
+    lb.require_amd(mod_self, [deps, function(...deps){
       let exports = m.factory.apply(m.module.exports, deps);
       if (exports)
         m.module.exports = exports;
       m.loaded = true;
       promise.return(m.module.exports);
-    });
+    }]);
     return promise;
   },
-  require_amd: function(mod_self, deps, cb){
+  require_amd: function(mod_self, [deps, cb]){
     if (!cb)
       return lb.require_cache(deps);
     let _deps = [];
@@ -54,7 +54,7 @@ lif.boot = {
         let dep = deps[i], v;
         switch (dep){
         case 'require':
-          v = (deps, cb)=>lb.require_amd(mod_self, deps, cb);
+          v = (deps, cb)=>lb.require_amd(mod_self, [deps, cb]);
           break;
         case 'exports': v = m.module.exports; break;
         case 'module': v = m.module; break;
@@ -126,8 +126,9 @@ lif.boot = {
 };
 lb = lif.boot;
 lb.define_amd.amd = {};
-window.define = lb.define_amd;
-window.require = lb.require_amd;
+window.define = function(){ return lb.define_amd(arguments[0], arguments); };
+window.require = function(){ return lb.require_amd(arguments[0], arguments); };
+window.process = {env: {}};
 
 let import_do = async({url, opt})=>{
   let slow;
@@ -137,7 +138,7 @@ let import_do = async({url, opt})=>{
     slow = eslow(5000, ['import_do', url]);
     let exports = await import(url, opt);
     slow.end();
-    //console.log('import_DONE('+url+')');
+    //console.log('import DONE('+url+')', exports);
     ret.exports = [];
     if (typeof exports=='object' && !Array.isArray(exports.default)){
       for (let i in exports.default)
