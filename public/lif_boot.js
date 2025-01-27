@@ -9,7 +9,7 @@ let sw_chan;
 let process =  {env: {}};
 function define(){ return define_amd(arguments[0], arguments); }
 define.amd = {};
-function require(){ return require_amd(arguments[0], arguments); }
+function require(){ return require_cjs_amd('undefined', arguments); }
 
 function define_amd(mod_self, args, module){
   let module_id /* ignored */, deps, factory;
@@ -84,6 +84,14 @@ function require_cjs(mod_self, module_id){
   if (!m.loaded)
     throw Error('module '+module_id+' not loaded completion');
   return m.module.exports;
+}
+
+function require_cjs_amd(mod_self, args){
+  if (args.length==1)
+    return require_cjs(mod_self, args[0]);
+  if (args.length==2)
+    return require_amd(mod_self, args);
+  throw Error('invalid call to require()');
 }
 
 async function require_single(mod_self, module_id){

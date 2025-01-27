@@ -262,7 +262,7 @@ const file_body_amd = f=>{
       return lb.define_amd(${uri_s}, arguments); };
     define.amd = {};
     let require = function(deps, cb){
-      return lb.require_amd(${uri_s}, [deps, cb]); };
+      return lb.require_cjs_amd(${uri_s}, arguments); };
     (()=>{
     ${f.body}
     })();
