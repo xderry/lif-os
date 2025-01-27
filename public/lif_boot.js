@@ -13,7 +13,7 @@ function require(){ return require_cjs_amd('undefined', arguments); }
 
 function define_amd(mod_self, args, module){
   let module_id /* ignored */, deps, factory;
-  let deps_default = ["require", "exports", "module"];
+  let deps_default = ['require', 'exports', 'module'];
   let exports_val; /* not supported */
   if (args.length==1){
     factory = args[0];
