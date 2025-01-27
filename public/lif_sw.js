@@ -388,7 +388,7 @@ const file_body_cjs = f=>{
     let lb = window.lif.boot;
     let module = {exports: {}};
     let exports = module.exports;
-    let process = {env: {}};
+    let process = lb.process;
     let require = module=>lb.require_cjs(${uri_s}, module);
     let require_async = async(module)=>await lb.require_single(${uri_s}, module);
     let define = function(id, deps, factory){
@@ -405,6 +405,7 @@ const file_body_cjs = f=>{
 let headers = {
   js: new Headers({'content-type': 'application/javascript'}),
   json: new Headers({'content-type': 'application/json'}),
+  plain: new Headers({'content-type': 'plain/text'}),
 };
 
 let ext_react = ['.ts', '.tsx', '/index.ts', '/index.tsx'];
@@ -542,11 +543,13 @@ let npm_file_lookup = (pkg, file)=>{
       return v;
   };
   // start package.json lookup
-  let v = parse_pkg()||{file};
-  let mfile = path_file(v.file);
-  if (mfile && !mfile.includes('.'))
-    v.file += '.js';
-  return v;
+  let {file: f, type} = parse_pkg()||{file};
+  if (f.startsWith('./'))
+    f = f.slice(2);
+  let fpart = path_file(f);
+  if (fpart && !fpart.includes('.'))
+    f += '.js';
+  return {file: f, type};
 };
 
 async function npm_pkg_load(log, uri){
@@ -606,8 +609,10 @@ async function npm_pkg_load(log, uri){
 
 async function npm_file_load(log, uri){
   let file, _uri;
-  if (!(_uri = npm_uri_parse(uri)))
+  if (!(_uri = npm_uri_parse(uri))){
+    log('invalid module');
     throw Error('invalid module name '+uri);
+  }
   if (file = npm_file[uri])
     return await file.wait;
   file = npm_file[uri] = {uri, _uri, wait: ewait()};
@@ -633,7 +638,8 @@ async function _sw_fetch(event){
   let external = u.origin!=self.location.origin;
   let log_mod = url+(ref && ref!=u.origin+'/' ? ' ref '+ref : '');
   let path = u.path;
-  let log = function(){ if (!url.includes(' none ')) return; console.log(url, ...arguments); };
+  let log = function(){ if (!url.includes('@')) return;
+    console.log(url, ...arguments); };
   log.l = log;
   log.mod = log_mod;
   if (request.method!='GET')
@@ -680,7 +686,8 @@ async function _sw_fetch(event){
       throw Error('failed fetch '+path);
     let body = await response.text();
     return new Response(`
-        //TODO We don't track instances, so 2x imports will result in 2x style tags
+        //TODO We don't track instances, so 2x imports will result
+        // in 2x style tags
         const head = document.getElementsByTagName('head')[0];
         const style = document.createElement('style');
         style.setAttribute('type', 'text/css');
@@ -728,10 +735,16 @@ async function _sw_fetch(event){
     return new Response(res.code, {headers: headers.js});
   }
   if (v=str.prefix(path, '/.lif/pkgroot/')){
+    let _headers = headers.plain;
     let response = await fetch(path);
-    return response;
-    //let body = await response.text();
-    //return new Response(res.code, {headers: headers.js});
+    if (response?.status!=200)
+      return response;
+    let body = await response.text();
+    if (u.ext=='.js')
+      _headers = headers.js;
+    if (u.ext=='.json')
+      _headers = headers.json;
+    return new Response(body, {headers: _headers});
   }
   return await fetch(request);
 }
