@@ -1,6 +1,7 @@
 let lif = window.lif = {};
 import util from './lif_util.js';
-let {ewait, esleep, eslow, postmessage_chan, path_file, npm_uri_parse} = util;
+let {ewait, esleep, eslow, postmessage_chan, path_file,
+  url_uri_parse, npm_uri_parse} = util;
 
 let modules = {};
 let lb;
@@ -103,15 +104,15 @@ async function require_single(mod_self, module_id){
   let resolve, promise = new Promise(res=>resolve = res);
   m = modules[module_id] = {module_id, deps: [], promise,
     loaded: false, module: {exports: {}}};
+  let uri = module_get_uri(mod_self, module_id);
   let slow;
   try {
-    let uri = module_get_uri(mod_self, module_id);
     slow = eslow(5000, ['import('+module_id+')', uri]);
     m.mod = await import(uri);
     slow.end();
   } catch(err){
-    slow.end();
     console.error('import('+module_id+') failed. required from '+mod_self, err);
+    slow.end();
     throw err;
   }
   m.loaded = true;
@@ -130,14 +131,8 @@ function require_cjs_shim(mod_self, module_id){
 }
 
 function module_get_uri(mod_self, module_id){
-  let dir = module_id.split('/')[0];
-  let base = '/.lif/npm/'+mod_self;
-  let module = '/.lif/npm/'+module_id;
-  if (dir=='.' || dir=='..' || dir==''){
-    let uri = URL.parse(module_id, 'http://xxx'+base);
-    return !uri ? module : uri.pathname;
-  }
-  return module;
+  let u = url_uri_parse(module_id, '/'+mod_self);
+  return u.is_based ? '/.lif/npm'+u.pathname : '/.lif/npm/'+module_id;
 }
 
 lb = lif.boot = {
@@ -173,8 +168,8 @@ let import_do = async({url, opt})=>{
     }
     return ret;
   } catch(err){
-    slow.end();
     console.error('import_do('+url+') failed', err);
+    slow.end();
     throw err;
   }
 };

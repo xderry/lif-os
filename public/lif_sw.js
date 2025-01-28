@@ -77,8 +77,9 @@ let import_module = async(url)=>{
 let Babel = await import_module('https://unpkg.com/@babel/standalone@7.26.4/babel.js');
 let util = await import_module('./lif_util.js');
 let {postmessage_chan, str, OF, path_ext, path_file, path_dir, path_is_dir,
-  url_parse, uri_parse, npm_uri_parse, esleep, eslow} = util;
+  url_parse, uri_parse, url_uri_parse, npm_uri_parse, esleep, eslow} = util;
 let {qw} = str;
+let json = JSON.stringify;
 
 const npm_modver = uri=>uri.name+uri.version;
 let npm_cdn = ['https://cdn.jsdelivr.net/npm',
@@ -248,7 +249,7 @@ const file_body_amd = f=>{
   if (f.body_amd)
     return f.body_amd;
   let _exports = '';
-  let uri_s = JSON.stringify(f.uri);
+  let uri_s = json(f.uri);
   file_parse(f);
   f.exports_cjs.forEach(e=>{
     if (e=='default')
@@ -271,11 +272,22 @@ const file_body_amd = f=>{
   `;
 };
 
+const file_body_global = f=>{
+  if (f.body_global)
+    return f.body_global;
+  return f.body_global = `
+    (()=>{
+    ${f.body}
+    })();
+    export default window.${f.static.global};
+  `;
+}
+
 const file_body_cjs_shim = async(log, f)=>{
   if (f.wait_body_cjs)
     return await f.wait_body_cjs;
   let p = f.wait_body_cjs = ewait();
-  let uri_s = JSON.stringify(f.uri);
+  let uri_s = json(f.uri);
   let _exports = '';
   let npm_cjs_uri = '/.lif/npm.cjs/'+f.uri;
   log('call import('+npm_cjs_uri+')');
@@ -288,22 +300,11 @@ const file_body_cjs_shim = async(log, f)=>{
     _exports += `export const ${e} = _export.${e};\n`;
   });
   return p.return(f.body_cjs_shim = `
-    import _export from ${JSON.stringify(npm_cjs_uri)};
+    import _export from ${json(npm_cjs_uri)};
     export default _export;
     ${_exports}
   `);
 };
-
-const file_body_global = f=>{
-  if (f.body_global)
-    return f.body_global;
-  return f.body_global = `
-    (()=>{
-    ${f.body}
-    })();
-    export default window.${f.static.global};
-  `;
-}
 
 let ast_get_scope_type = path=>{
   for (; path; path=path.parentPath){
@@ -333,6 +334,7 @@ let file_ast = f=>{
   }
   f.ast_exports = [];
   f.ast_requires = [];
+  f.ast_imports = [];
   traverse(f.ast, {
     AssignmentExpression: path=>{
       let n = path.node, l = n.left, r = n.right, v;
@@ -357,7 +359,7 @@ let file_ast = f=>{
   });
 };
 
-let cjs_require_tr_await = f=>{
+let tr_cjs_require = f=>{
   let s = '', src = f.body, pos = 0;
   for (let r of f.ast_requires){
     s += src.slice(pos, r.start);
@@ -365,7 +367,7 @@ let cjs_require_tr_await = f=>{
       pos = r.start;
       continue;
     }
-    s += '(await require_async('+JSON.stringify(r.module)+'))';
+    s += '(await require_async('+json(r.module)+'))';
     pos = r.end;
   }
   s += src.slice(pos);
@@ -375,14 +377,14 @@ let cjs_require_tr_await = f=>{
 const file_body_cjs = f=>{
   if (f.body_cjs)
     return f.body_cjs;
-  let uri_s = JSON.stringify(f.uri);
+  let uri_s = json(f.uri);
   f.requires_cjs = cjs_require_scan(f.body);
   file_ast(f);
-  let tr = cjs_require_tr_await(f);
+  let tr = tr_cjs_require(f);
   let pre = '';
   for (let r of f.ast_requires){
     if (r.type=='sync')
-      pre += 'await require_async('+JSON.stringify(r.module)+');\n';
+      pre += 'await require_async('+json(r.module)+');\n';
   }
   return f.body_cjs = `
     let lb = window.lif.boot;
@@ -401,6 +403,44 @@ const file_body_cjs = f=>{
     export default module.exports;
   `;
 }
+
+/*
+let tr_mjs_require = f=>{
+  let s = '', src = f.body, pos = 0;
+  for (let r of f.ast_imports){
+    s += src.slice(pos, r.start);
+    let u = url_uri_parse(r.url);
+    if (u.is_rel_uri);
+    let uri = !URL.parse(module_id, 'http://x');
+    if (url[0])
+    if (r.url); //=='sync' || r.type=='try');
+    if (!url){
+      pos = r.start;
+      continue;
+    }
+    s += json(r.module);
+    pos = r.end;
+  }
+  s += src.slice(pos);
+  return s;
+};
+*/
+
+const file_body_mjs = f=>{
+  return f.body;
+  if (f.body_mjs)
+    return f.body_mjs;
+  let uri_s = json(f.uri);
+  f.imports_mjs = mjs_import_scan(f.body);
+  file_ast(f);
+  let tr = tr_mjs_import(f);
+  return f.body_cjs = `
+    let lb = window.lif.boot;
+    let import = function(){ return lb.import(${uri_s}, arguments); };
+    ${tr}
+  `;
+};
+
 
 let headers = {
   js: new Headers({'content-type': 'application/javascript'}),
@@ -638,7 +678,7 @@ async function _sw_fetch(event){
   let external = u.origin!=self.location.origin;
   let log_mod = url+(ref && ref!=u.origin+'/' ? ' ref '+ref : '');
   let path = u.path;
-  let log = function(){ if (!url.includes('@')) return;
+  let log = function(){ if (!url.includes(' xxx ')) return;
     console.log(url, ...arguments); };
   log.l = log;
   log.mod = log_mod;
@@ -667,8 +707,8 @@ async function _sw_fetch(event){
       body = file_body_amd(f);
     else if (f.type=='cjs' || !f.type){
       body = await file_body_cjs_shim(log, f);
-    } else
-      body = f.body;
+    } else // mjs
+      body = file_body_mjs(f);
     log(`module ${uri} served ${f.uri}`);
     return new Response(body, {headers: headers.js});
   }
@@ -691,7 +731,7 @@ async function _sw_fetch(event){
         const head = document.getElementsByTagName('head')[0];
         const style = document.createElement('style');
         style.setAttribute('type', 'text/css');
-        style.appendChild(document.createTextNode(${JSON.stringify(body)}));
+        style.appendChild(document.createTextNode(${json(body)}));
         head.appendChild(style);
         export default null; //TODO here we can export CSS module instead
       `,
@@ -757,8 +797,8 @@ async function sw_fetch(event){
     slow.end();
     return res;
   } catch (err){
-    slow.end();
     console.error('ServiceWorker sw_fetch err', err);
+    slow.end();
     return new Response(''+err, {status: 500, statusText: ''+err});
   }
 }

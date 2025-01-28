@@ -147,18 +147,39 @@ const url_parse = (url, base)=>{
   const u = URL.parse(url, base);
   if (!u)
     throw Error('cannot parse url: '+url);
-  u.path = u.pathname;
-  u.ext = path_ext(u.path);
-  u.file = path_file(u.path);
-  u.dir = path_dir(u.path);
-  return u;
+  // some of these fields are setters, so copy object to normal object
+  let _u = {path: u.pathname,
+    hash: u.hash, host: u.host, hostname: u.hostname, href: u.href,
+    origin: u.origin, password: u.password, pathname: u.pathname,
+    port: u.port, protocol: u.protocol, search: u.search,
+    searchParams: u.searchParams, username: u.username};
+  // add info
+  _u.path = u.pathname;
+  _u.ext = path_ext(_u.path);
+  _u.file = path_file(_u.path);
+  _u.dir = path_dir(_u.path);
+  return _u;
 };
 const uri_parse = (uri, base)=>{
   base ||= '';
   if (base && base[0]!='/')
-    throw Error('invalid uri '+base);
-  let u = {...url_parse(uri, 'http://x'+base)};
+    throw Error('invalid base uri '+base);
+  let u = url_parse(uri, 'http://x'+base);
   u.host = u.hostname = u.origin = u.href = u.protocol = '';
+  return u;
+};
+const url_uri_parse = (url_uri, base)=>{
+  base ||= '';
+  if (base && base[0]!='/')
+    throw Error('invalid base uri '+base);
+  let u = url_parse(url_uri, 'http://x'+base);
+  if (u.host=='x'){
+    u.host = u.hostname = u.origin = u.href = u.protocol = '';
+    u.is_uri = true;
+    let dir = url_uri.split('/')[0];
+    u.is_based = dir=='.' || dir=='..' ? 'uri_rel': dir=='' ? 'uri' : null;
+  } else
+    u.is_based = 'url';
   return u;
 };
 exports.path_ext = path_ext;
@@ -167,6 +188,7 @@ exports.path_dir = path_dir;
 exports.path_is_dir = path_is_dir;
 exports.url_parse = url_parse;
 exports.uri_parse = uri_parse;
+exports.url_uri_parse = url_uri_parse;
 
 // parse-package-name
 const npm_uri_parse = path=>{
