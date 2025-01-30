@@ -10,7 +10,7 @@ let sw_chan;
 let process =  {env: {}};
 function define(){ return define_amd(arguments[0], arguments); }
 define.amd = {};
-function require(){ return require_cjs_amd('undefined', arguments); }
+function require(){ return require_cjs_amd(null, arguments); }
 
 function define_amd(mod_self, args, module){
   let module_id /* ignored */, deps, factory;
@@ -143,6 +143,7 @@ lb = lif.boot = {
   require_amd,
   module_get,
   require_cjs,
+  require_cjs_amd,
   require_single,
   require_cjs_shim,
   module_get_uri,

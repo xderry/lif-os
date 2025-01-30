@@ -13,7 +13,7 @@ cm.g = ()=>cm.getValue();
 cm.s = v=>cm.setValue(v);
 cm.g('42');
 
-let p, src, exports, requires;
+let p, src, exports, requires, imports;
 let get_scope_type = path=>{
   console.log('path', path);
   for (; path; path=path.parentPath){
@@ -37,10 +37,12 @@ let get_scope_type = path=>{
   }
 };
 function do_parse(s){
+  console.log("do_parse");
   src = s;
   cm.s(s);
   exports = [];
   requires = [];
+  imports = [];
   p = parser.parse(s, {sourceType: 'module'});
   console.log(p);
   traverse(p, {
@@ -67,13 +69,22 @@ function do_parse(s){
         console.log('found require('+v+'): '+s.slice(n.start, n.end), type, /*path*/);
       }
     },
+    ImportDeclaration: function(path){
+      let n = path.node, v;
+      if (n.source.type=='StringLiteral'){
+        imports.push(v = n.source.value);
+        console.log('found import('+v+')');
+      }
+    },
   });
+  console.error("AST", p);
 }
 async function load(){
   // let url = 'https://unpkg.com/react@18/umd/react.development.js';
   //let url = 'https://unpkg.com/react-dom@19.0.0/cjs/react-dom.development.js';
   //let url = 'https://unpkg.com/react-dom@19.0.0/index.js';
-  let url = 'https://unpkg.com/inherits@2.0.4/inherits.js';
+  //let url = 'https://unpkg.com/inherits@2.0.4/inherits.js';
+  let url = 'https://esm.sh/react-dom@19/client?dev'; // import
   let res = await fetch(url);
   let src = await res.text();
   do_parse(src);

@@ -225,33 +225,58 @@ let cjs_require_scan = function(js){
   return paths;
 };
 
-const file_parse = f=>{
-  if (f.parse)
-    return f.parse;
-  f.parse = parser.parse(f.body, {sourceType: 'script'});
-  f.exports_cjs = [];
-  traverse(f.parse, {
-    AssignmentExpression: function(path){
+let parser = Babel.packages.parser;
+let traverse = Babel.packages.traverse.default;
+let file_ast = f=>{
+  try {
+    f.ast = parser.parse(f.body, {sourceType: 'module'});
+  } catch(err){
+    throw Error('fail ast parse('+f.uri+'):'+err);
+  }
+  f.ast_exports = [];
+  f.ast_requires = [];
+  f.ast_imports = [];
+  traverse(f.ast, {
+    AssignmentExpression: path=>{
       let n = path.node, l = n.left, r = n.right;
       if (n.operator=='=' &&
         l.type=='MemberExpression' &&
         l.object.name=='exports' && l.object.type=='Identifier' &&
         l.property.type=='Identifier')
       {
-        f.exports_cjs.push(l.property.name);
+        f.ast_exports.push(l.property.name);
+      }
+    },
+    CallExpression: path=>{
+      let n = path.node, v;
+      if (n.callee.type=='Identifier' && n.callee.name=='require' &&
+        n.arguments.length==1 && n.arguments[0].type=='StringLiteral')
+      {
+        v = n.arguments[0].value;
+        let type = ast_get_scope_type(path);
+        f.ast_requires.push({module: v, start: n.start, end: n.end, type});
+      }
+    },
+    ImportDeclaration: path=>{
+      let n = path.node, v;
+      if (n.source.type=='StringLiteral'){
+        v = n.source.value;
+        let type = ast_get_scope_type(path);
+        console.log('found import('+v+')');
+        f.ast_imports.push({module: v, start: n.start, end: n.end, type});
       }
     },
   });
-  return f.parse;
 };
+
 
 const file_body_amd = f=>{
   if (f.body_amd)
     return f.body_amd;
   let _exports = '';
   let uri_s = json(f.uri);
-  file_parse(f);
-  f.exports_cjs.forEach(e=>{
+  file_ast(f);
+  f.ast_exports.forEach(e=>{
     if (e=='default')
       return;
     _exports += `export const ${e} = mod.exports.${e};\n`;
@@ -324,41 +349,6 @@ let ast_get_scope_type = path=>{
   }
 };
 
-let parser = Babel.packages.parser;
-let traverse = Babel.packages.traverse.default;
-let file_ast = f=>{
-  try {
-    f.ast = parser.parse(f.body, {sourceType: 'module'});
-  } catch(err){
-    throw Error('fail parse('+f.uri+'):'+err);
-  }
-  f.ast_exports = [];
-  f.ast_requires = [];
-  f.ast_imports = [];
-  traverse(f.ast, {
-    AssignmentExpression: path=>{
-      let n = path.node, l = n.left, r = n.right, v;
-      if (n.operator=='=' &&
-        l.type=='MemberExpression' &&
-        l.object.name=='exports' && l.object.type=='Identifier' &&
-        l.property.type=='Identifier')
-      {
-        f.ast_exports.push(v=l.property.name);
-      }
-    },
-    CallExpression: path=>{
-      let n = path.node, v;
-      if (n.callee.type=='Identifier' && n.callee.name=='require' &&
-        n.arguments.length==1 && n.arguments[0].type=='StringLiteral')
-      {
-        v = n.arguments[0].value;
-        let type = ast_get_scope_type(path);
-        f.ast_requires.push({module: v, start: n.start, end: n.end, type});
-      }
-    },
-  });
-};
-
 let tr_cjs_require = f=>{
   let s = '', src = f.body, pos = 0;
   for (let r of f.ast_requires){
@@ -404,34 +394,61 @@ const file_body_cjs = f=>{
   `;
 }
 
+let str_splice = (s, at, len, add)=>s.slice(0, at)+add+s.slice(at+len);
 /*
-let tr_mjs_require = f=>{
+function Scr(s){
+  if (!(this instanceof Scr))
+    return new Scr(...arguments);
+  this.s = '';
+  this.frag = [];
+  this.length = 0;
+  if (s)
+    this.set(s);
+}
+Scr.prototype.set = function(s){
+  this.frag = s ? [{at: 0, str: s}] : [];
+  this.len = 0;
+};
+Scr.prototype.get_frag = function(at){
+  // use qsearch in the future
+  for (let i=0; (f=this.frag[i]) && at>=f.at+f.len; i++);
+  return i;
+};
+Scr.prototype.mod_src = function(at, s){
+  // find the frag pos of src in dst, and update
+  let f = this.get_frag(at);
+  if (thi
+};
+*/
+
+let tr_mjs_import = f=>{
   let s = '', src = f.body, pos = 0;
   for (let r of f.ast_imports){
     s += src.slice(pos, r.start);
-    let u = url_uri_parse(r.url);
-    if (u.is_rel_uri);
-    let uri = !URL.parse(module_id, 'http://x');
-    if (url[0])
-    if (r.url); //=='sync' || r.type=='try');
-    if (!url){
-      pos = r.start;
+    pos = r.start;
+    let uri = r.module;
+    let u = url_uri_parse(uri);
+    if (u.is_based)
+      continue;
+    if (!(u = npm_uri_parse(uri))){
+      console.error('invalid npm im=port('+uri+')');
       continue;
     }
-    s += json(r.module);
+    if (!u.version)
+      u.version = f.npm.dep_ver_lookup(uri)||'';
+    s += json('/.lif/npm/'+u.name+u.version+u.path);
     pos = r.end;
   }
   s += src.slice(pos);
   return s;
 };
-*/
 
 const file_body_mjs = f=>{
   return f.body;
   if (f.body_mjs)
     return f.body_mjs;
   let uri_s = json(f.uri);
-  f.imports_mjs = mjs_import_scan(f.body);
+  f.imports_mjs = tr_mjs_import(f.body);
   file_ast(f);
   let tr = tr_mjs_import(f);
   return f.body_cjs = `
@@ -491,6 +508,16 @@ async function fetch_try(log, urls){
     throw Error('failed fetch module '+urls[0]+' for '+log.mod);
   return {response, url, idx};
 }
+
+let npm_dep_ver_lookup = (pkg, module)=>{
+  let ver = pkg.dependencies?.[module];
+  if (!ver)
+    return;
+  if (ver[0]=='^' || ver[0]=='=')
+    ver = ver.slice(1);
+  return '@'+ver;
+};
+
 
 // TODO support longer matches first /a/b/c matches before /a/b
 let file_match = (file, match)=>{
@@ -615,6 +642,7 @@ async function npm_pkg_load(log, uri){
     type ||= npm.type;
     return {type, redirect, nuri};
   };
+  npm.dep_ver_lookup = module=>npm_dep_ver_lookup(npm.pkg, module);
   if ((npm_s = npm_load_static(mod_ver)) || (npm_s = npm_load_static(uri))){
     npm.static = npm_s;
     npm.pkg = npm_s.pkg;
@@ -629,16 +657,14 @@ async function npm_pkg_load(log, uri){
   }
   // load package.json to locate module's index.js
   try {
-    let urls = [];
-    npm_cdn.forEach(cdn=>urls.push(cdn+'/'+npm.mod_ver+'/package.json'));
-    let {response, url, idx} = await fetch_try(log, urls);
-    let msg = ' in '+uri+' '+url;
-    npm.cdn = npm_cdn[idx];
+    npm.cdn = npm.mod_ver=='pkgroot' ? '/.lif' : npm_cdn[0];
+    let url = [npm.cdn+'/'+npm.mod_ver+'/package.json'];
+    let {response} = await fetch_try(log, url);
     let pkg = npm.pkg = await response.json();
     if (!pkg)
-      throw Error('empty package.json '+msg);
+      throw Error('empty package.json '+url);
     if (!pkg.version)
-      throw Error('invalid package.json '+msg);
+      throw Error('invalid package.json '+url);
     let {file, type} = npm_file_lookup(npm.pkg, '.');
     npm.type = type;
     return npm.wait.return(npm);
@@ -660,7 +686,7 @@ async function npm_file_load(log, uri){
   let v;
   let {nuri, type, redirect} = v = file.npm.file_lookup(uri);
   file.nuri = nuri;
-  file.url = npm_cdn[0]+nuri;
+  file.url = file.npm.cdn+nuri;
   file.type = type;
   file.redirect = redirect;
   if (file.redirect)
@@ -775,6 +801,7 @@ async function _sw_fetch(event){
     return new Response(res.code, {headers: headers.js});
   }
   if (v=str.prefix(path, '/.lif/pkgroot/')){
+    // let app = await npm_file_load(log, '.pkgroot/'+v.rest);
     let _headers = headers.plain;
     let response = await fetch(path);
     if (response?.status!=200)
