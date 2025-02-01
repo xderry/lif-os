@@ -11,6 +11,10 @@
   "browserslist": [
     "defaults and supports es6 and not ie 11 and >1%"
   ],
+  "lif": {
+    "type": "tsx",
+    "alt": [".js", ".jsx", ".ts", ".tsx"]
+  },
   "scripts": {
     "build": "yarn build:prebuild && next build",
     "build:bundle-analyzer": "yarn build",

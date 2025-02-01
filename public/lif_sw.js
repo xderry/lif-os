@@ -51,13 +51,13 @@ let import_module = async(url)=>{
     if (response.status!=200)
       throw Error('import('+url+') failed fetch');
     let body = await response.text();
-    let body_tr = body.replace(/\nexport default ([^;]+);\n/,
+    let tr = body.replace(/\nexport default ([^;]+);\n/,
       (match, _export)=>'\n;module.exports = '+_export+';\n');
     mod.script = `'use strict';
       let module = {exports: {}};
       let exports = module.exports;
       (()=>{
-      ${body_tr}
+      ${tr}
       })();
       module.exports;
     `;
@@ -85,40 +85,14 @@ const npm_modver = uri=>uri.name+uri.version;
 let npm_cdn = ['https://cdn.jsdelivr.net/npm',
   //'https://unpkg.com',
 ];
+let npm_map = {
+  'lif.app': '/lif.app',
+};
 let npm_pkg = {};
 let npm_file = {};
 
 // see index.html for coresponding import maps
 let npm_static = {
-  /*
-  'react': {type: 'amd',
-    url: 'https://unpkg.com/react@18/umd/react.development.js',
-    exports: qw`Children Component Fragment Profiler PureComponent StrictMode
-      Suspense __SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED
-      act cloneElement createContext createElement createFactory createRef
-      forwardRef isValidElement lazy memo startTransition unstable_act
-      useCallback useContext useDebugValue useDeferredValue useEffect useId
-      useImperativeHandle useInsertionEffect useLayoutEffect useMemo useReducer
-      useRef useState useSyncExternalStore useTransition version`,
-  },
-  'react/jsx-runtime': {type: 'mjs',
-    url: 'https://unpkg.com/jsx-runtime@1.2.0/index.js'},
-  'react-dom': {type: 'amd',
-    url: 'https://unpkg.com/react-dom@18/umd/react-dom.development.js',
-    exports: qw`__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED
-      createPortal createRoot findDOMNode flushSync hydrate hydrateRoot render
-      unmountComponentAtNode unstable_batchedUpdates
-      unstable_renderSubtreeIntoContainer version`,
-  },
-  'canvas-confetti': {type: 'cjs',
-    url: 'https://unpkg.com/canvas-confetti@1.9.3/src/confetti.js',
-    exports: qw`reset create shapeFromPath shapeFromText`,
-  },
-  */
-  //'/lif_next_dynamic.js': {body:
-  //  'export function dynamic(import_fn){ return import_fn(); }'},
-
-  /*
   // browserify dummy nodes:
   'object.assign': {body:
     `export default function(){ return Object.assign; }`},
@@ -165,71 +139,30 @@ let npm_static = {
   'vm': {node: 'vm-browserify/index.js'},
   'zlib': {node: 'browserify-zlib/lib/index.js'},
   '_process': {node: 'process/browser.js'},
-  */
-};
-for (const [name, m] of OF(npm_static)){
-  m.is_dir = path_is_dir(name);
-  if (m.node){
-    m.type = 'cjs';
-    m.add_dir = '/browserify/node_modules'
-    if (m.node=='empty')
-      m.uri = '/lif_mod_empty.js';
-    else if (m.node=='error')
-      m.uri = '/lif_mod_error.js';
-    else {
-      m.uris = ['/.lif/pkgroot/node_modules'+m.add_dir+'/'+m.node,
-        '/.lif/pkgroot/node_modules/'+m.node];
-      m.uri = m.uris[m.uris.length-1];
-    }
-  }
-  if (m.body!==undefined)
-    m.type = 'body';
-}
-
-const npm_load_static = path=>{
-  let mod, m, v, prefix;
-  for (let name in npm_static){
-    m = npm_static[name];
-    if (name==path || name+'/'==path){ // /react -> /react/
-      mod = {m, name, rest: ''};
-      break;
-    }
-    if (m.is_dir && (v=str.prefix(path, name))){
-      mod = {m, name, rest: v.rest};
-      break;
-    }
-  }
-  if (!mod)
-    return;
-  if (m.url){
-    let u = url_parse(m.url);
-    mod.url = m.is_dir && mod.rest ? u.origin+u.dir+mod.rest : m.url;
-  } else if (m.uri){
-    let u = uri_parse(m.uri);
-    mod.url = m.is_dir && mod.rest ? u.dir+mod.rest : m.uri;
-  }
-  return mod;
-};
-
-// "const mod = require('module');" -> ["module"]
-let cjs_require_scan = function(js){
-  // poor-man's require('module') scanner. in the future use a AST parser
-  let requires = [...js.matchAll(
-    /\brequire\s*\(\s*(['"])([^'"\\]+)(['"])\s*\)/g)];
-  let paths = [];
-  requires.forEach(([, q1, file, q2])=>{
-    if (q1!=q2)
-      return;
-    paths.push(file);
-  });
-  return paths;
 };
 
 let parser = Babel.packages.parser;
 let traverse = Babel.packages.traverse.default;
 let file_ast = f=>{
+  let opt = f.ast_opt = {presets: [], plugins: [],
+    // sourceMaps: true,
+    //generatorOpts: {'importAttributesKeyword': 'with'}
+  };
+  let ext = path_ext(f.uri);
+  if (ext=='.tsx' || ext=='.ts'){
+    opt.plugins.push('typescript');
+    //opt.filename = path_file(f.uri);
+    f.ast_is_ts = true;
+  }
+  let react;
+  if (ext=='.tsx' || ext=='.jsx'){
+    f.ast_is_jsx = true;
+    opt.plugins.push('jsx');
+    //opt.presets.push('jsx');
+  }
+  opt.sourceType = 'module';
   try {
-    f.ast = parser.parse(f.body, {sourceType: 'module'});
+    f.ast = parser.parse(f.body, opt);
   } catch(err){
     throw Error('fail ast parse('+f.uri+'):'+err);
   }
@@ -262,17 +195,15 @@ let file_ast = f=>{
       if (n.source.type=='StringLiteral'){
         v = n.source.value;
         let type = ast_get_scope_type(path);
-        console.log('found import('+v+')');
         f.ast_imports.push({module: v, start: n.start, end: n.end, type});
       }
     },
   });
 };
 
-
-const file_body_amd = f=>{
-  if (f.body_amd)
-    return f.body_amd;
+const file_tr_amd = f=>{
+  if (f.tr_amd)
+    return f.tr_amd;
   let _exports = '';
   let uri_s = json(f.uri);
   file_ast(f);
@@ -282,7 +213,7 @@ const file_body_amd = f=>{
     _exports += `export const ${e} = mod.exports.${e};\n`;
   });
   _exports += `export default mod.exports;\n`;
-  return f.body_amd = `
+  return f.tr_amd = `
     let lb = window.lif.boot;
     let define = function(id, deps, factory){
       return lb.define_amd(${uri_s}, arguments); };
@@ -297,21 +228,10 @@ const file_body_amd = f=>{
   `;
 };
 
-const file_body_global = f=>{
-  if (f.body_global)
-    return f.body_global;
-  return f.body_global = `
-    (()=>{
-    ${f.body}
-    })();
-    export default window.${f.static.global};
-  `;
-}
-
-const file_body_cjs_shim = async(log, f)=>{
-  if (f.wait_body_cjs)
-    return await f.wait_body_cjs;
-  let p = f.wait_body_cjs = ewait();
+const file_tr_cjs_shim = async(log, f)=>{
+  if (f.wait_tr_cjs)
+    return await f.wait_tr_cjs;
+  let p = f.wait_tr_cjs = ewait();
   let uri_s = json(f.uri);
   let _exports = '';
   let npm_cjs_uri = '/.lif/npm.cjs/'+f.uri;
@@ -324,7 +244,7 @@ const file_body_cjs_shim = async(log, f)=>{
       return;
     _exports += `export const ${e} = _export.${e};\n`;
   });
-  return p.return(f.body_cjs_shim = `
+  return p.return(f.tr_cjs_shim = `
     import _export from ${json(npm_cjs_uri)};
     export default _export;
     ${_exports}
@@ -364,11 +284,10 @@ let tr_cjs_require = f=>{
   return s;
 };
 
-const file_body_cjs = f=>{
-  if (f.body_cjs)
-    return f.body_cjs;
+const file_tr_cjs = f=>{
+  if (f.tr_cjs)
+    return f.tr_cjs;
   let uri_s = json(f.uri);
-  f.requires_cjs = cjs_require_scan(f.body);
   file_ast(f);
   let tr = tr_cjs_require(f);
   let pre = '';
@@ -376,7 +295,7 @@ const file_body_cjs = f=>{
     if (r.type=='sync')
       pre += 'await require_async('+json(r.module)+');\n';
   }
-  return f.body_cjs = `
+  return f.tr_cjs = `
     let lb = window.lif.boot;
     let module = {exports: {}};
     let exports = module.exports;
@@ -395,31 +314,6 @@ const file_body_cjs = f=>{
 }
 
 let str_splice = (s, at, len, add)=>s.slice(0, at)+add+s.slice(at+len);
-/*
-function Scr(s){
-  if (!(this instanceof Scr))
-    return new Scr(...arguments);
-  this.s = '';
-  this.frag = [];
-  this.length = 0;
-  if (s)
-    this.set(s);
-}
-Scr.prototype.set = function(s){
-  this.frag = s ? [{at: 0, str: s}] : [];
-  this.len = 0;
-};
-Scr.prototype.get_frag = function(at){
-  // use qsearch in the future
-  for (let i=0; (f=this.frag[i]) && at>=f.at+f.len; i++);
-  return i;
-};
-Scr.prototype.mod_src = function(at, s){
-  // find the frag pos of src in dst, and update
-  let f = this.get_frag(at);
-  if (thi
-};
-*/
 
 let tr_mjs_import = f=>{
   let s = '', src = f.body, pos = 0;
@@ -431,7 +325,7 @@ let tr_mjs_import = f=>{
     if (u.is_based)
       continue;
     if (!(u = npm_uri_parse(uri))){
-      console.error('invalid npm im=port('+uri+')');
+      console.error('invalid npm import('+uri+')');
       continue;
     }
     if (!u.version)
@@ -443,21 +337,46 @@ let tr_mjs_import = f=>{
   return s;
 };
 
-const file_body_mjs = f=>{
-  return f.body;
-  if (f.body_mjs)
-    return f.body_mjs;
-  let uri_s = json(f.uri);
-  f.imports_mjs = tr_mjs_import(f.body);
+const file_tr_mjs = f=>{
+  if (f.tr_mjs)
+    return f.tr_mjs;
   file_ast(f);
+  let uri_s = json(f.uri);
   let tr = tr_mjs_import(f);
-  return f.body_cjs = `
+  return f.tr_cjs = `
     let lb = window.lif.boot;
-    let import = function(){ return lb.import(${uri_s}, arguments); };
+    let import_lif = function(){ return lb.import(${uri_s}, arguments); };
     ${tr}
   `;
 };
 
+const file_tr_tsx = f=>{
+  if (f.tr_tsx)
+    return f.tr_tsx;
+  file_ast(f);
+  let s;
+  let opt = {presets: [], plugins: [], sourceMaps: true,
+    generatorOpts: {'importAttributesKeyword': 'with'},
+  };
+  let ext = path_ext(f.uri);
+  if (ext=='.tsx' || ext=='.ts'){
+    opt.presets.push('typescript');
+    opt.filename = path_file(f.uri);
+    f.ast_is_ts = true;
+  }
+  let react;
+  if (ext=='.tsx' || ext=='.jsx'){
+    f.ast_is_jsx = true;
+    opt.presets.push('react');
+  }
+  try {
+    ({code: s} = Babel.transformFromAst(f.ast, f.body, opt));
+  } catch (err){
+    console.error('babel('+f.uri+') FAILED', err);
+    throw err;
+  }
+  return f.tr_tsx = s;
+}
 
 let headers = {
   js: new Headers({'content-type': 'application/javascript'}),
@@ -465,25 +384,6 @@ let headers = {
   plain: new Headers({'content-type': 'plain/text'}),
 };
 
-let ext_react = ['.ts', '.tsx', '/index.ts', '/index.tsx'];
-let pkg_map = {
-  '/pages/': {path: '/.lif/pkgroot/pages/'},
-  '/components/': {path: '/.lif/pkgroot/components/', ext: ext_react},
-  '/hooks/': {path: '/.lif/pkgroot/hooks/', ext: ext_react},
-  '/contexts/': {path: '/.lif/pkgroot/contexts/', ext: ext_react},
-  '/utils/': {path: '/.lif/pkgroot/utils/', ext: ext_react},
-  '/styles/': {path: '/.lif/pkgroot/styles/', ext: ext_react},
-};
-const pkg_get = path=>{
-  let v;
-  if (v=str.prefix(path, '/.lif/pkgroot/')){
-    let name = '/'+v.rest;
-    for (let i in pkg_map){
-      if (v=str.prefix(name, i))
-        return pkg_map[i];
-    }
-  }
-};
 let content_type_get = destination=>{
   // audio, audioworklet, document, embed, fencedframe, font, frame, iframe,
   // image, json, manifest, object, paintworklet, report, script,
@@ -494,20 +394,6 @@ let content_type_get = destination=>{
   };
   return types[destination] || types.script;
 };
-async function fetch_try(log, urls){
-  let response, url, idx;
-  if (typeof urls=='string')
-    urls = [urls];
-  for (idx in urls){
-    url = urls[idx];
-    response = await fetch(url);
-    if (response.status==200)
-      break;
-  }
-  if (response?.status!=200)
-    throw Error('failed fetch module '+urls[0]+' for '+log.mod);
-  return {response, url, idx};
-}
 
 let npm_dep_ver_lookup = (pkg, module)=>{
   let ver = pkg.dependencies?.[module];
@@ -610,63 +496,49 @@ let npm_file_lookup = (pkg, file)=>{
       return v;
   };
   // start package.json lookup
+  let v, alt;
   let {file: f, type} = parse_pkg()||{file};
+  type ||= pkg?.lif?.type;
   if (f.startsWith('./'))
     f = f.slice(2);
-  let fpart = path_file(f);
-  if (fpart && !fpart.includes('.'))
-    f += '.js';
-  return {file: f, type};
+  if (!path_ext(f))
+    alt = pkg?.lif?.alt || ['.js'];
+  return {file: f, type, alt};
 };
 
 async function npm_pkg_load(log, uri){
-  let npm, _uri, mod_ver, npm_s;
-  if (!(_uri = npm_uri_parse(uri)))
-    throw Error('invalid module name '+uri);
-  mod_ver = npm_modver(_uri);
+  let npm, mod_ver, npm_s;
+  mod_ver = npm_modver(npm_uri_parse(uri));
   if (npm = npm_pkg[mod_ver])
     return await npm.wait;
-  npm = npm_pkg[mod_ver] = {uri, _uri, mod_ver, wait: ewait()};
+  npm = npm_pkg[mod_ver] = {uri, mod_ver, wait: ewait()};
   npm.file_lookup = uri=>{
-    let _uri, redirect;
-    if (!(_uri = npm_uri_parse(uri)))
-      throw Error('invalid module name '+uri);
-    let ofile = _uri.path.replace(/^\//, '')||'.';
-    let {file, type} = npm_file_lookup(npm.pkg, ofile);
-    let nuri = '/'+npm.mod_ver+'/'+(file||ofile);
-    if (nuri.includes(''))
-    if (!file)
-      type = npm.type;
-    else if (file!=ofile)
-      redirect = nuri;
+    let {path} = npm_uri_parse(uri);
+    let ofile = path.replace(/^\//, '')||'.';
+    let {file, type, alt} = npm_file_lookup(npm.pkg, ofile);
+    let nfile = file||ofile;
+    let redirect;
+    if (nfile && nfile!=ofile)
+      redirect = '/.lif/npm/'+npm.mod_ver+'/'+nfile;
     type ||= npm.type;
-    return {type, redirect, nuri};
+    return {type, redirect, nfile, alt};
   };
   npm.dep_ver_lookup = module=>npm_dep_ver_lookup(npm.pkg, module);
-  if ((npm_s = npm_load_static(mod_ver)) || (npm_s = npm_load_static(uri))){
-    npm.static = npm_s;
-    npm.pkg = npm_s.pkg;
-    npm.body = npm_s.body;
-    npm.type = npm_s.type;
-    npm.url = npm_s.url;
-    if (npm.body===undefined){
-      let {response} = await fetch_try(log, npm.url);
-      npm.body = await response.text();
-    }
-    return npm.wait.return(npm);
-  }
   // load package.json to locate module's index.js
   try {
-    npm.cdn = npm.mod_ver=='pkgroot' ? '/.lif' : npm_cdn[0];
-    let url = [npm.cdn+'/'+npm.mod_ver+'/package.json'];
-    let {response} = await fetch_try(log, url);
+    npm.pkg_base = npm_map[npm.mod_ver]||npm_cdn+'/'+npm.mod_ver;
+    let url = npm.pkg_base+'/package.json';
+    let response = await fetch(url);
+    if (response.status!=200)
+      throw Error('module('+log.mod+') failed fetch '+url);
     let pkg = npm.pkg = await response.json();
     if (!pkg)
       throw Error('empty package.json '+url);
     if (!pkg.version)
       throw Error('invalid package.json '+url);
-    let {file, type} = npm_file_lookup(npm.pkg, '.');
+    let {type, alt} = npm_file_lookup(npm.pkg, '.');
     npm.type = type;
+    npm.alt = alt
     return npm.wait.return(npm);
   } catch(err){
     throw npm.wait.throw(err);
@@ -674,25 +546,42 @@ async function npm_pkg_load(log, uri){
 }
 
 async function npm_file_load(log, uri){
-  let file, _uri;
-  if (!(_uri = npm_uri_parse(uri))){
-    log('invalid module');
-    throw Error('invalid module name '+uri);
-  }
+  let file;
   if (file = npm_file[uri])
     return await file.wait;
-  file = npm_file[uri] = {uri, _uri, wait: ewait()};
+  file = npm_file[uri] = {uri, wait: ewait()};
   file.npm = await npm_pkg_load(log, uri);
-  let v;
-  let {nuri, type, redirect} = v = file.npm.file_lookup(uri);
-  file.nuri = nuri;
-  file.url = file.npm.cdn+nuri;
+  let {nfile, type, redirect, alt} = file.npm.file_lookup(uri);
+  file.nfile = nfile;
+  file.url = file.npm.pkg_base+'/'+nfile;
   file.type = type;
   file.redirect = redirect;
+  file.alt = alt;
   if (file.redirect)
     return file.wait.return(file);
-  let {response} = await fetch_try(log, file.url);
+  // prepare file list
+  let response = await fetch(file.url);
+  if (response.status!=200){
+    if (alt){
+      let afile, err;
+      for (let a of alt){
+        try {
+          afile = await npm_file_load(log, uri+a);
+          break;
+        } catch(err){}
+      }
+      if (afile){
+        file.redirect = '/.lif/npm/'+afile.uri;
+        console.log('fetch OK redirect '+file.url);
+        return file.wait.return(file);
+      }
+    }
+    console.log('fetch fail '+file.url);
+    throw file.wait.throw(Error('module('+log.mod+', alt '+alt.join(' ')+') '+
+      'failed fetch '+file.url));
+  }
   file.body = await response.text();
+  console.log('fetch OK '+file.url);
   return file.wait.return(file);
 }
  
@@ -704,15 +593,14 @@ async function _sw_fetch(event){
   let external = u.origin!=self.location.origin;
   let log_mod = url+(ref && ref!=u.origin+'/' ? ' ref '+ref : '');
   let path = u.path;
-  let log = function(){ if (!url.includes(' xxx ')) return;
+  let log = function(){ if (!url.includes('basic')) return;
     console.log(url, ...arguments); };
   log.l = log;
   log.mod = log_mod;
   if (request.method!='GET')
     return fetch(request);
-  let v, cjs;
+  let v;
   log('Req');
-  let pkg = pkg_get(path);
   if (external)
     return fetch(request);
   if (path=='/favicon.ico')
@@ -721,20 +609,22 @@ async function _sw_fetch(event){
     let uri = v.rest, body;
     let f = await npm_file_load(log, uri);
     if (f.redirect){
-      log(`module ${uri} -> ${f.nuri}`);
-      return Response.redirect('/.lif/npm'+f.nuri);
+      log(`module ${uri} -> ${f.redirect}`);
+      return Response.redirect(f.redirect);
     }
     log('npm', f.type);
     if (f.type=='raw')
       body = f.body;
-    if (f.type=='global')
-      body = file_body_global(f);
     else if (f.type=='amd')
-      body = file_body_amd(f);
-    else if (f.type=='cjs' || !f.type){
-      body = await file_body_cjs_shim(log, f);
-    } else // mjs
-      body = file_body_mjs(f);
+      body = file_tr_amd(f);
+    else if (f.type=='cjs' || !f.type)
+      body = await file_tr_cjs_shim(log, f);
+    else if (f.type=='mjs')
+      body = file_tr_mjs(f);
+    else if (f.type=='tsx')
+      body = file_tr_tsx(f);
+    else
+      throw Error('invalid type '+f.type);
     log(`module ${uri} served ${f.uri}`);
     return new Response(body, {headers: headers.js});
   }
@@ -742,7 +632,7 @@ async function _sw_fetch(event){
     log('npm.cjs');
     let uri = v.rest;
     let f = await npm_file_load(log, uri);
-    let tr = file_body_cjs(f);
+    let tr = file_tr_cjs(f);
     log(`module ${uri} served ${f.url}`);
     return new Response(tr, {headers: headers.js});
   }
@@ -763,55 +653,6 @@ async function _sw_fetch(event){
       `,
       {headers: headers.js}
     );
-  }
-  if (['.jsx', '.tsx', '.ts'].includes(u.ext) || pkg?.ext && !u.ext){
-    let response, res_status;
-    log.l('babel '+u.ext, url);
-    let urls = [], __url;
-    if (u.ext)
-      urls.push(url);
-    else
-      pkg.ext.forEach(ext=>urls.push(url+ext));
-    ({response, url: __url} = await fetch_try(log, urls));
-    if (response?.status!=200)
-      return response;
-    u = url_parse(__url);
-    log.l('babel fetched module src '+__url);
-    let body = await response.text();
-    let opt = {presets: [], plugins: [], sourceMaps: true,
-      generatorOpts: {'importAttributesKeyword': 'with'}}
-    if (u.ext=='.tsx' || u.ext=='.ts'){
-      opt.presets.push('typescript');
-      opt.filename = u.file;
-    }
-    let react;
-    if (u.ext=='.tsx' || u.ext=='.jsx'){
-      react = true;
-      opt.presets.push('react');
-    }
-    let res;
-    try {
-      res = await Babel.transform(body, opt);
-    } catch (err){
-      console.error('babel FAILED: '+path, err);
-      throw err;
-    }
-    if (react)
-      res.code = 'import React from "react";\n'+res.code;
-    return new Response(res.code, {headers: headers.js});
-  }
-  if (v=str.prefix(path, '/.lif/pkgroot/')){
-    // let app = await npm_file_load(log, '.pkgroot/'+v.rest);
-    let _headers = headers.plain;
-    let response = await fetch(path);
-    if (response?.status!=200)
-      return response;
-    let body = await response.text();
-    if (u.ext=='.js')
-      _headers = headers.js;
-    if (u.ext=='.json')
-      _headers = headers.json;
-    return new Response(body, {headers: _headers});
   }
   return await fetch(request);
 }

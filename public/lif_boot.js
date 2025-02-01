@@ -1,7 +1,7 @@
 let lif = window.lif = {};
 import util from './lif_util.js';
 let {ewait, esleep, eslow, postmessage_chan, path_file,
-  url_uri_parse, npm_uri_parse} = util;
+  url_uri_parse, npm_uri_parse, _debugger} = util;
 
 let modules = {};
 let lb;
@@ -104,11 +104,11 @@ async function require_single(mod_self, module_id){
   let resolve, promise = new Promise(res=>resolve = res);
   m = modules[module_id] = {module_id, deps: [], promise,
     loaded: false, module: {exports: {}}};
-  let uri = module_get_uri(mod_self, module_id);
+  let url = module_get_url_uri(mod_self, module_id);
   let slow;
   try {
-    slow = eslow(5000, ['import('+module_id+')', uri]);
-    m.mod = await import(uri);
+    slow = eslow(5000, ['import('+module_id+')', url]);
+    m.mod = await import(url);
     slow.end();
   } catch(err){
     console.error('import('+module_id+') failed. required from '+mod_self, err);
@@ -130,11 +130,17 @@ function require_cjs_shim(mod_self, module_id){
   return m.module;
 }
 
-function module_get_uri(mod_self, module_id){
+function module_get_url_uri(mod_self, module_id){
   let u = url_uri_parse(module_id, '/'+mod_self);
-  return u.is_based ? '/.lif/npm'+u.pathname : '/.lif/npm/'+module_id;
+  return u.is_based=='url' ? module_id :
+    u.is_based ? '/.lif/npm'+u.pathname :
+    '/.lif/npm/'+module_id;
 }
 
+async function _import(url, opt){
+  let _url = module_get_url_uri(opt?.mod_self||'', url);
+  return await import(_url, opt);
+}
 lb = lif.boot = {
   process,
   define,
@@ -146,7 +152,7 @@ lb = lif.boot = {
   require_cjs_amd,
   require_single,
   require_cjs_shim,
-  module_get_uri,
+  import: _import,
 };
 lb = lif.boot;
 window.define = define;
@@ -174,6 +180,15 @@ let import_do = async({url, opt})=>{
     throw err;
   }
 };
+let launch_app = async()=>{
+  let url = window.launch_url || 'lif.app/pages/index.tsx';
+  try {
+    return await _import(url);
+  } catch (err){
+    console.error('import('+url+') failed', err);
+    throw err;
+  }
+};
 let lif_boot_start = async()=>{
   try {
     const registration = await navigator.serviceWorker.register('/lif_sw.js');
@@ -182,13 +197,8 @@ let lif_boot_start = async()=>{
       sw_chan = new postmessage_chan();
       sw_chan.connect(navigator.serviceWorker.controller);
       sw_chan.add_server_cmd('import', async({arg})=>await import_do(arg));
-      let url = window.launch_url || './pages/index.tsx';
-      try {
-        await import(url);
-      } catch (err){
-        console.error('import('+url+') failed', err);
-        throw err;
-      }
+      console.log('ServiceWorker registred');
+      launch_app();
     };
     // this launches the React app if the SW has been installed before or
     // immediately after registration
@@ -198,7 +208,7 @@ let lif_boot_start = async()=>{
     else
       navigator.serviceWorker.addEventListener('controllerchange', launch);
   } catch (err){
-    console.error('Service worker registration failed', err.stack);
+    console.error('ServiceWorker registration failed', err, err.stack);
   }
 };
 lif_boot_start();

@@ -74,7 +74,16 @@ str.prefix = (s, prefix)=>{
   if (s.startsWith(prefix))
     return {prefix: prefix, rest: s.substr(prefix.length)};
 };
-exports.str = str;
+str.splice = (s, at, len, add)=>s.slice(0, at)+add+s.slice(at+len);
+
+// assert.js
+let assert_eq = (exp, res)=>{
+  if (exp==res)
+    return;
+  console.error('test FAIL: exp', exp, 'res', res);
+  throw Error('test FAIL');
+}
+exports.assert_eq = assert_eq;
 
 // chan.js
 class postmessage_chan {
@@ -201,12 +210,66 @@ exports.npm_uri_parse = npm_uri_parse;
 
 // useful debugging script: stop on first time
 //{ if (file.includes('getProto') && match.includes('getPro') && !self._x_) {self._x_=1; debugger;} }
-const _debugger = (stop)=>{
-  if (stop && !self._x_){
+const _debugger = function(stop){
+  if ((!arguments.length || stop) && !self._x_){
     self._x_=1;
     debugger; // eslint-disable-line no-debugger
   }
 };
+exports._debugger = _debugger;
+
+function Scroll(s){
+  if (!(this instanceof Scroll))
+    return new Scroll(...arguments);
+  this.s = s;
+  this.diff = [];
+  this.len = this.s.length;
+}
+Scroll.prototype.get_diff_pos = function(at, len){
+  if (at+len>this.len)
+    throw Error('diff out of s range');
+  let i, d;
+  // use binary-search in the future
+  for (i=0; d=this.diff[i]; i++){
+    if (at>=d.at+d.len)
+      continue;
+    if (at+len<=d.at)
+      return i;
+    throw Error('diff overlaping');
+  }
+  return i;
+};
+Scroll.prototype.splice = function(at, len, s){
+  // find the frag pos of src in dst, and update
+  let i = this.get_diff_pos(at, len);
+  this.diff.splice(i, 0, {at, len, s});
+};
+Scroll.prototype.out = function(){
+  let s = '', at = 0, d;
+  for (let i=0; d=this.diff[i]; i++){
+    s += this.s.slice(at, d.at)+d.s;
+    at = d.at+d.len;
+  }
+  s += this.s.slice(at, this.len);
+  return s;
+};
+exports.Scroll = Scroll;
+
+function test_Scroll(){
+  let t = v=>assert_eq(v, s.out());
+  let s = Scroll('0123456789abcdef');
+  s.splice(3, 2, 'ABCD');
+  t('012ABCD56789abcdef');
+  s.splice(6, 1, 'QW');
+  t('012ABCD5QW789abcdef');
+  s.splice(7, 1, '  ');
+  t('012ABCD5QW  89abcdef');
+  s.splice(6, 0, '-');
+  s.splice(7, 0, '-');
+  s.splice(8, 0, '-');
+  t('012ABCD5-QW-  -89abcdef');
+}
+exports.test_Scroll = test_Scroll;
 
 export default exports;
 

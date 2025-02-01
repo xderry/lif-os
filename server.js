@@ -13,11 +13,12 @@ const is_prefix = (url, prefix)=>{
 const server = http.createServer((req, res)=>{
   const opt = {directoryListing: false, cleanUrls: false};
   const url = req.url;
+  res.on('finish', ()=>console.log(
+    `${log_url} ${res.statusCode} ${res.statusMessage}`));
   let file;
   let v;
-  if (v=is_prefix(url, '/.lif/pkgroot/'))
+  if (v=is_prefix(url, '/lif.app/'))
     file = '/'+v.rest;
-  else if (v=is_prefix(url, '/.lif/'));
   else if (url=='/')
     file = '/public/index.html';
   else
@@ -25,8 +26,6 @@ const server = http.createServer((req, res)=>{
   if (file)
     opt.rewrites = [{source: '**', destination: file}];
   let log_url = url+(file && file!=url ? '->'+file : '');
-  res.on('finish', ()=>console.log(
-    `${log_url} ${res.statusCode} ${res.statusMessage}`));
   // You pass two more arguments for config and middleware
   // More details here: https://github.com/vercel/serve-handler#options
   return serve(req, res, opt);
