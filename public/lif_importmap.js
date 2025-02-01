@@ -32,6 +32,7 @@ let importmap = {imports: {}, scopes: {}};
 let importmap_gen = ()=>{
   let {imports, scopes} = importmap, a;
   imports['next/dynamic'] = './lif_next_dynamic.js';
+  /*
   // core react
   a = [];
   a.push(...qw`react@18.3.1 react-dom@18.3.1 scheduler`);
@@ -73,6 +74,7 @@ let importmap_gen = ()=>{
     imports[e+'/'] = p+'/';
     imports['/'+e+'/'] = p+'/';
   });
+  */
   return importmap;
 };
 let importmap_load = ()=>{

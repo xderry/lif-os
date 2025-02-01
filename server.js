@@ -17,10 +17,12 @@ const server = http.createServer((req, res)=>{
     `${log_url} ${res.statusCode} ${res.statusMessage}`));
   let file;
   let v;
+  if (url=='/')
+    url = '/index.html';
   if (v=is_prefix(url, '/lif.app/'))
     file = '/'+v.rest;
-  else if (url=='/')
-    file = '/public/index.html';
+  else if (v=is_prefix(url, '/lif/'))
+    file = '/public/'+v.rest;
   else
     file = '/public'+url;
   if (file)

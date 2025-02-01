@@ -22,23 +22,23 @@ function sw_init_pre(){
   // this is needed to activate the worker immediately without reload
   // @see https://developers.google.com/web/fundamentals/primers/service-workers/lifecycle#clientsclaim
   self.addEventListener('activate', event=>event.waitUntil((async()=>{
-    await self.clients.claim();
     await lif_sw.wait_activate;
+    await self.clients.claim();
   })()));
   self.addEventListener("message", event=>{
     if (!lif_sw.on_message)
-      console.error('sw message event before inited');
+      console.error('sw message event before inited', event);
     lif_sw.on_message(event);
   });
   self.addEventListener('fetch', event=>{
     if (!lif_sw.on_fetch)
-      console.error('sw message fetch('+event.request.url+') event before inited');
+      console.error('sw fetch('+event.request.url+') event before inited');
     lif_sw.on_fetch(event);
   });
 }
 sw_init_pre();
 
-(async()=>{
+(async()=>{try {
 // service worker import() implementation
 let import_modules = {};
 let import_module = async(url)=>{
@@ -75,7 +75,7 @@ let import_module = async(url)=>{
 };
 
 let Babel = await import_module('https://unpkg.com/@babel/standalone@7.26.4/babel.js');
-let util = await import_module('./lif_util.js');
+let util = await import_module('/lif/lif_util.js');
 let {postmessage_chan, str, OF, path_ext, path_file, path_dir, path_is_dir,
   url_parse, uri_parse, url_uri_parse, npm_uri_parse, esleep, eslow} = util;
 let {qw} = str;
@@ -143,26 +143,39 @@ let npm_static = {
 
 let parser = Babel.packages.parser;
 let traverse = Babel.packages.traverse.default;
+
 let file_ast = f=>{
-  let opt = f.ast_opt = {presets: [], plugins: [],
-    // sourceMaps: true,
-    //generatorOpts: {'importAttributesKeyword': 'with'}
-  };
+  if (f.ast)
+    return;
   let ext = path_ext(f.uri);
-  if (ext=='.tsx' || ext=='.ts'){
+  f.ast_is_ts = ext=='.ts' || ext=='.tsx';
+  f.ast_is_jsx = ext=='.jsx' || ext=='.tsx';
+  f.js = f.body;
+  if (f.ast_is_ts || f.ast_is_jsx){
+    let opt = {presets: [], plugins: [], sourceMaps: true,
+      generatorOpts: {importAttributesKeyword: 'with'}};
+    if (f.ast_is_ts){
+      opt.presets.push('typescript');
+      opt.filename = path_file(f.uri);
+    }
+    if (f.ast_is_jsx)
+      opt.presets.push('react');
+    try {
+      ({code: f.js} = Babel.transform(f.body, opt));
+    } catch (err){
+      console.error('babel('+f.uri+') FAILED', err);
+      throw err;
+    }
+  }
+
+  let opt = f.ast_opt = {presets: [], plugins: []};
+  if (f.ast_is_ts)
     opt.plugins.push('typescript');
-    //opt.filename = path_file(f.uri);
-    f.ast_is_ts = true;
-  }
-  let react;
-  if (ext=='.tsx' || ext=='.jsx'){
-    f.ast_is_jsx = true;
+  if (f.ast_is_jsx)
     opt.plugins.push('jsx');
-    //opt.presets.push('jsx');
-  }
   opt.sourceType = 'module';
   try {
-    f.ast = parser.parse(f.body, opt);
+    f.ast = parser.parse(f.js, opt);
   } catch(err){
     throw Error('fail ast parse('+f.uri+'):'+err);
   }
@@ -193,9 +206,10 @@ let file_ast = f=>{
     ImportDeclaration: path=>{
       let n = path.node, v;
       if (n.source.type=='StringLiteral'){
-        v = n.source.value;
+        let s = n.source;
+        v = s.value;
         let type = ast_get_scope_type(path);
-        f.ast_imports.push({module: v, start: n.start, end: n.end, type});
+        f.ast_imports.push({module: v, start: s.start, end: s.end, type});
       }
     },
   });
@@ -206,7 +220,6 @@ const file_tr_amd = f=>{
     return f.tr_amd;
   let _exports = '';
   let uri_s = json(f.uri);
-  file_ast(f);
   f.ast_exports.forEach(e=>{
     if (e=='default')
       return;
@@ -221,7 +234,7 @@ const file_tr_amd = f=>{
     let require = function(deps, cb){
       return lb.require_cjs_amd(${uri_s}, arguments); };
     (()=>{
-    ${f.body}
+    ${f.js}
     })();
     let mod = await lb.module_get(${uri_s});
     ${_exports}
@@ -270,7 +283,7 @@ let ast_get_scope_type = path=>{
 };
 
 let tr_cjs_require = f=>{
-  let s = '', src = f.body, pos = 0;
+  let s = '', src = f.js, pos = 0;
   for (let r of f.ast_requires){
     s += src.slice(pos, r.start);
     if (r.type=='sync' || r.type=='try'){
@@ -288,7 +301,6 @@ const file_tr_cjs = f=>{
   if (f.tr_cjs)
     return f.tr_cjs;
   let uri_s = json(f.uri);
-  file_ast(f);
   let tr = tr_cjs_require(f);
   let pre = '';
   for (let r of f.ast_requires){
@@ -316,7 +328,7 @@ const file_tr_cjs = f=>{
 let str_splice = (s, at, len, add)=>s.slice(0, at)+add+s.slice(at+len);
 
 let tr_mjs_import = f=>{
-  let s = '', src = f.body, pos = 0;
+  let s = '', src = f.js, pos = 0;
   for (let r of f.ast_imports){
     s += src.slice(pos, r.start);
     pos = r.start;
@@ -340,43 +352,14 @@ let tr_mjs_import = f=>{
 const file_tr_mjs = f=>{
   if (f.tr_mjs)
     return f.tr_mjs;
-  file_ast(f);
   let uri_s = json(f.uri);
   let tr = tr_mjs_import(f);
-  return f.tr_cjs = `
+  return f.tr_mjs = `
     let lb = window.lif.boot;
     let import_lif = function(){ return lb.import(${uri_s}, arguments); };
     ${tr}
   `;
 };
-
-const file_tr_tsx = f=>{
-  if (f.tr_tsx)
-    return f.tr_tsx;
-  file_ast(f);
-  let s;
-  let opt = {presets: [], plugins: [], sourceMaps: true,
-    generatorOpts: {'importAttributesKeyword': 'with'},
-  };
-  let ext = path_ext(f.uri);
-  if (ext=='.tsx' || ext=='.ts'){
-    opt.presets.push('typescript');
-    opt.filename = path_file(f.uri);
-    f.ast_is_ts = true;
-  }
-  let react;
-  if (ext=='.tsx' || ext=='.jsx'){
-    f.ast_is_jsx = true;
-    opt.presets.push('react');
-  }
-  try {
-    ({code: s} = Babel.transformFromAst(f.ast, f.body, opt));
-  } catch (err){
-    console.error('babel('+f.uri+') FAILED', err);
-    throw err;
-  }
-  return f.tr_tsx = s;
-}
 
 let headers = {
   js: new Headers({'content-type': 'application/javascript'}),
@@ -593,7 +576,7 @@ async function _sw_fetch(event){
   let external = u.origin!=self.location.origin;
   let log_mod = url+(ref && ref!=u.origin+'/' ? ' ref '+ref : '');
   let path = u.path;
-  let log = function(){ if (!url.includes('basic')) return;
+  let log = function(){ if (!url.includes('basic_main')) return;
     console.log(url, ...arguments); };
   log.l = log;
   log.mod = log_mod;
@@ -606,27 +589,26 @@ async function _sw_fetch(event){
   if (path=='/favicon.ico')
     return await fetch('https://raw.githubusercontent.com/DustinBrett/daedalOS/refs/heads/main/public/favicon.ico');
   if (v=str.prefix(path, '/.lif/npm/')){
-    let uri = v.rest, body;
+    let uri = v.rest;
     let f = await npm_file_load(log, uri);
     if (f.redirect){
       log(`module ${uri} -> ${f.redirect}`);
       return Response.redirect(f.redirect);
     }
     log('npm', f.type);
-    if (f.type=='raw')
-      body = f.body;
+    file_ast(f);
+    let js = f.js;
+    if (f.type=='raw');
     else if (f.type=='amd')
-      body = file_tr_amd(f);
+      js = file_tr_amd(f);
     else if (f.type=='cjs' || !f.type)
-      body = await file_tr_cjs_shim(log, f);
+      js = await file_tr_cjs_shim(log, f);
     else if (f.type=='mjs')
-      body = file_tr_mjs(f);
-    else if (f.type=='tsx')
-      body = file_tr_tsx(f);
+      js = file_tr_mjs(f);
     else
       throw Error('invalid type '+f.type);
     log(`module ${uri} served ${f.uri}`);
-    return new Response(body, {headers: headers.js});
+    return new Response(js, {headers: headers.js});
   }
   if (v=str.prefix(path, '/.lif/npm.cjs/')){
     log('npm.cjs');
@@ -687,5 +669,5 @@ function sw_init_post(){
   lif_sw.wait_activate.return();
 }
 sw_init_post();
-})();
+} catch(err){console.error('failed sw init', err);}})();
 

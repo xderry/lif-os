@@ -56,6 +56,7 @@ exports.OF = OF;
 
 // str.js
 const str = {};
+exports.str = str;
 str.split_ws = s=>s.split(/\s+/).filter(s=>s);
 str.es6_str = args=>{
   var parts = args[0], s = '';
