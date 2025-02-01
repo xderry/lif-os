@@ -147,72 +147,96 @@ let traverse = Babel.packages.traverse.default;
 let file_ast = f=>{
   if (f.ast)
     return;
-  let ext = path_ext(f.uri);
-  f.ast_is_ts = ext=='.ts' || ext=='.tsx';
-  f.ast_is_jsx = ext=='.jsx' || ext=='.tsx';
-  f.js = f.body;
-  if (f.ast_is_ts || f.ast_is_jsx){
-    let opt = {presets: [], plugins: [], sourceMaps: true,
-      generatorOpts: {importAttributesKeyword: 'with'}};
-    if (f.ast_is_ts){
-      opt.presets.push('typescript');
-      opt.filename = path_file(f.uri);
+  let tr_jsx_ts = ()=>{
+    let ext = path_ext(f.uri);
+    f.ast_is_ts = ext=='.ts' || ext=='.tsx';
+    f.ast_is_jsx = ext=='.jsx' || ext=='.tsx';
+    f.js = f.body;
+    if (f.ast_is_ts || f.ast_is_jsx){
+      let opt = {presets: [], plugins: [], sourceMaps: true,
+        generatorOpts: {importAttributesKeyword: 'with'}};
+      if (f.ast_is_ts){
+        opt.presets.push('typescript');
+        opt.filename = path_file(f.uri);
+      }
+      if (f.ast_is_jsx)
+        opt.presets.push('react');
+      try {
+        ({code: f.js} = Babel.transform(f.body, opt));
+      } catch (err){
+        console.error('babel('+f.uri+') FAILED', err);
+        throw err;
+      }
     }
-    if (f.ast_is_jsx)
-      opt.presets.push('react');
-    try {
-      ({code: f.js} = Babel.transform(f.body, opt));
-    } catch (err){
-      console.error('babel('+f.uri+') FAILED', err);
-      throw err;
-    }
-  }
+  };
 
-  let opt = f.ast_opt = {presets: [], plugins: []};
-  if (f.ast_is_ts)
-    opt.plugins.push('typescript');
-  if (f.ast_is_jsx)
-    opt.plugins.push('jsx');
-  opt.sourceType = 'module';
-  try {
-    f.ast = parser.parse(f.js, opt);
-  } catch(err){
-    throw Error('fail ast parse('+f.uri+'):'+err);
-  }
-  f.ast_exports = [];
-  f.ast_requires = [];
-  f.ast_imports = [];
-  traverse(f.ast, {
-    AssignmentExpression: path=>{
-      let n = path.node, l = n.left, r = n.right;
-      if (n.operator=='=' &&
-        l.type=='MemberExpression' &&
-        l.object.name=='exports' && l.object.type=='Identifier' &&
-        l.property.type=='Identifier')
-      {
-        f.ast_exports.push(l.property.name);
-      }
-    },
-    CallExpression: path=>{
-      let n = path.node, v;
-      if (n.callee.type=='Identifier' && n.callee.name=='require' &&
-        n.arguments.length==1 && n.arguments[0].type=='StringLiteral')
-      {
-        v = n.arguments[0].value;
+  let parse_ast = ()=>{
+    let opt = f.ast_opt = {presets: [], plugins: []};
+    if (f.ast_is_ts)
+      opt.plugins.push('typescript');
+    if (f.ast_is_jsx)
+      opt.plugins.push('jsx');
+    opt.sourceType = 'module';
+    try {
+      f.ast = parser.parse(f.js, opt);
+    } catch(err){
+      throw Error('fail ast parse('+f.uri+'):'+err);
+    }
+  };
+
+  let scan_ast = ()=>{
+    f.ast_exports = [];
+    f.ast_requires = [];
+    f.ast_imports = [];
+    let has_require, has_import, has_export, has_await;
+    traverse(f.ast, {
+      AssignmentExpression: path=>{
+        let n = path.node, l = n.left, r = n.right;
+        if (n.operator=='=' &&
+          l.type=='MemberExpression' &&
+          l.object.name=='exports' && l.object.type=='Identifier' &&
+          l.property.type=='Identifier')
+        {
+          f.ast_exports.push(l.property.name);
+        }
+      },
+      CallExpression: path=>{
+        has_require = true;
+        let n = path.node, v;
+        if (n.callee.type=='Identifier' && n.callee.name=='require' &&
+          n.arguments.length==1 && n.arguments[0].type=='StringLiteral')
+        {
+          v = n.arguments[0].value;
+          let type = ast_get_scope_type(path);
+          f.ast_requires.push({module: v, start: n.start, end: n.end, type});
+        }
+      },
+      ImportDeclaration: path=>{
+        has_import = true;
+        let n = path.node, v;
+        if (n.source.type=='StringLiteral'){
+          let s = n.source;
+          v = s.value;
+          let type = ast_get_scope_type(path);
+          f.ast_imports.push({module: v, start: s.start, end: s.end, type});
+        }
+      },
+      ExportNamedDeclaration: path=>{ has_export = true; },
+      ExportDefaultDeclaration: path=>{ has_export = true; },
+      AwaitExpression: path=>{
         let type = ast_get_scope_type(path);
-        f.ast_requires.push({module: v, start: n.start, end: n.end, type});
-      }
-    },
-    ImportDeclaration: path=>{
-      let n = path.node, v;
-      if (n.source.type=='StringLiteral'){
-        let s = n.source;
-        v = s.value;
-        let type = ast_get_scope_type(path);
-        f.ast_imports.push({module: v, start: s.start, end: s.end, type});
-      }
-    },
-  });
+        if (type=='program')
+          has_await = true;
+      },
+    });
+    f.type_ast = has_import||has_export||has_await ? 'mjs' :
+      has_require ? 'cjs' : '';
+  };
+
+  tr_jsx_ts();
+  parse_ast();
+  scan_ast();
+  f.type = f.type_ast||f.type_lookup;
 };
 
 const file_tr_amd = f=>{
@@ -328,21 +352,35 @@ const file_tr_cjs = f=>{
 let str_splice = (s, at, len, add)=>s.slice(0, at)+add+s.slice(at+len);
 
 let tr_mjs_import = f=>{
-  let s = '', src = f.js, pos = 0;
-  for (let r of f.ast_imports){
-    s += src.slice(pos, r.start);
-    pos = r.start;
-    let uri = r.module;
+  let tr_import = uri=>{
+    let v;
     let u = url_uri_parse(uri);
     if (u.is_based)
-      continue;
+      return;
     if (!(u = npm_uri_parse(uri))){
-      console.error('invalid npm import('+uri+')');
-      continue;
+      console.error('invalid npm tr import('+uri+')');
+      return;
+    }
+    if (v = f.npm.pkg.lif?.modmap?.[u.name+u.version]){
+      if (v.startsWith('/'))
+        v = 'lif.app'+v;
+      uri = v+u.path;
+    }
+    if (!(u = npm_uri_parse(uri))){
+      console.error('invalid npm tr import('+uri+')');
+      return;
     }
     if (!u.version)
       u.version = f.npm.dep_ver_lookup(uri)||'';
-    s += json('/.lif/npm/'+u.name+u.version+u.path);
+    return '/.lif/npm/'+u.name+u.version+u.path;
+  };
+  let s = '', src = f.js, pos = 0, v;
+  for (let r of f.ast_imports){
+    s += src.slice(pos, r.start);
+    pos = r.start;
+    if (!(v=tr_import(r.module)))
+      continue;
+    s += json(v);
     pos = r.end;
   }
   s += src.slice(pos);
@@ -489,12 +527,11 @@ let npm_file_lookup = (pkg, file)=>{
   return {file: f, type, alt};
 };
 
-async function npm_pkg_load(log, uri){
-  let npm, mod_ver, npm_s;
-  mod_ver = npm_modver(npm_uri_parse(uri));
+async function npm_pkg_load(log, mod_ver){
+  let npm, npm_s;
   if (npm = npm_pkg[mod_ver])
     return await npm.wait;
-  npm = npm_pkg[mod_ver] = {uri, mod_ver, wait: ewait()};
+  npm = npm_pkg[mod_ver] = {mod_ver, wait: ewait()};
   npm.file_lookup = uri=>{
     let {path} = npm_uri_parse(uri);
     let ofile = path.replace(/^\//, '')||'.';
@@ -519,9 +556,7 @@ async function npm_pkg_load(log, uri){
       throw Error('empty package.json '+url);
     if (!pkg.version)
       throw Error('invalid package.json '+url);
-    let {type, alt} = npm_file_lookup(npm.pkg, '.');
-    npm.type = type;
-    npm.alt = alt
+    npm.alt = pkg.lif?.alt;
     return npm.wait.return(npm);
   } catch(err){
     throw npm.wait.throw(err);
@@ -529,15 +564,15 @@ async function npm_pkg_load(log, uri){
 }
 
 async function npm_file_load(log, uri){
-  let file;
+  let file, do_log = false;
   if (file = npm_file[uri])
     return await file.wait;
   file = npm_file[uri] = {uri, wait: ewait()};
-  file.npm = await npm_pkg_load(log, uri);
+  file.npm = await npm_pkg_load(log, npm_modver(npm_uri_parse(uri)));
   let {nfile, type, redirect, alt} = file.npm.file_lookup(uri);
   file.nfile = nfile;
   file.url = file.npm.pkg_base+'/'+nfile;
-  file.type = type;
+  file.type_lookup = type;
   file.redirect = redirect;
   file.alt = alt;
   if (file.redirect)
@@ -555,16 +590,16 @@ async function npm_file_load(log, uri){
       }
       if (afile){
         file.redirect = '/.lif/npm/'+afile.uri;
-        console.log('fetch OK redirect '+file.url);
+        do_log && console.log('fetch OK redirect '+file.url);
         return file.wait.return(file);
       }
     }
-    console.log('fetch fail '+file.url);
+    console.error('fetch fail '+file.url+' '+alt.join(' ')+' for '+log.mod);
     throw file.wait.throw(Error('module('+log.mod+', alt '+alt.join(' ')+') '+
       'failed fetch '+file.url));
   }
   file.body = await response.text();
-  console.log('fetch OK '+file.url);
+  do_log && console.log('fetch OK '+file.url);
   return file.wait.return(file);
 }
  
@@ -576,7 +611,7 @@ async function _sw_fetch(event){
   let external = u.origin!=self.location.origin;
   let log_mod = url+(ref && ref!=u.origin+'/' ? ' ref '+ref : '');
   let path = u.path;
-  let log = function(){ if (!url.includes('basic_main')) return;
+  let log = function(){ if (!url.includes(' none ')) return;
     console.log(url, ...arguments); };
   log.l = log;
   log.mod = log_mod;
@@ -595,8 +630,9 @@ async function _sw_fetch(event){
       log(`module ${uri} -> ${f.redirect}`);
       return Response.redirect(f.redirect);
     }
-    log('npm', f.type);
     file_ast(f);
+    f.type = f.type_ast||f.type_lookup;
+    log('npm', f.type);
     let js = f.js;
     if (f.type=='raw');
     else if (f.type=='amd')

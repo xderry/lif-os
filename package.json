@@ -13,7 +13,16 @@
   ],
   "lif": {
     "type": "mjs",
-    "alt": [".js", ".jsx", ".ts", ".tsx"]
+    "alt": [".js", ".jsx", ".ts", ".tsx", "/index.js", "/index.jsx", "/index.ts", "/index.tsx"],
+    "modmap": {
+      "components": "/components",
+      "publis": "/public",
+      "hooks": "/hooks",
+      "contexts": "/contexts",
+      "pages": "/pages",
+      "utils": "/utils",
+      "styles": "/styles"
+    }
   },
   "scripts": {
     "build": "yarn build:prebuild && next build",
