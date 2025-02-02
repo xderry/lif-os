@@ -80,12 +80,14 @@ function do_parse(s){
   console.error("AST", p);
 }
 async function load(){
-  // let url = 'https://unpkg.com/react@18/umd/react.development.js';
-  //let url = 'https://unpkg.com/react-dom@19.0.0/cjs/react-dom.development.js';
-  //let url = 'https://unpkg.com/react-dom@19.0.0/index.js';
-  //let url = 'https://unpkg.com/inherits@2.0.4/inherits.js';
-  //let url = 'https://esm.sh/react-dom@19/client?dev'; // import
-  let url = 'http://localhost:3000/lif.app/public/basic_main.tsx';
+  let url;
+  //url = 'https://unpkg.com/react@18/umd/react.development.js';
+  //url = 'https://unpkg.com/react-dom@19.0.0/cjs/react-dom.development.js';
+  //url = 'https://unpkg.com/react-dom@19.0.0/index.js';
+  //url = 'https://unpkg.com/inherits@2.0.4/inherits.js';
+  //url = 'https://esm.sh/react-dom@19/client?dev'; // import
+  //url = 'http://localhost:3000/lif.app/public/basic_main.tsx';
+  url = 'https://cdn.jsdelivr.net/npm/stylis@4.3.2/index.js';
   let res = await fetch(url);
   let src = await res.text();
   do_parse(src);
