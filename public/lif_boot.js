@@ -1,4 +1,5 @@
 let lif = window.lif = {};
+let lif_version = '0.2.12';
 import util from './lif_util.js';
 let {ewait, esleep, eslow, postmessage_chan, path_file,
   url_uri_parse, npm_uri_parse, _debugger} = util;
@@ -141,7 +142,7 @@ async function _import(url, opt){
   let _url = module_get_url_uri(opt?.mod_self||'', url);
   return await import(_url, opt);
 }
-lb = lif.boot = {
+lif.boot = {
   process,
   define,
   require,
@@ -153,6 +154,7 @@ lb = lif.boot = {
   require_single,
   require_cjs_shim,
   import: _import,
+  version: lif_version,
 };
 lb = lif.boot;
 window.define = define;
@@ -197,7 +199,10 @@ let lif_boot_start = async()=>{
       sw_chan = new postmessage_chan();
       sw_chan.connect(navigator.serviceWorker.controller);
       sw_chan.add_server_cmd('import', async({arg})=>await import_do(arg));
-      console.log('ServiceWorker registred');
+      sw_chan.add_server_cmd('version', arg=>({version: lif_version}));
+      console.log('lif boot version: '+lif_version);
+      console.log('lif sw version: '+(await sw_chan.cmd('version')).version);
+      console.log('lif boot: ServiceWorker registred. Booting app');
       launch_app();
     };
     // this launches the React app if the SW has been installed before or

@@ -16,7 +16,7 @@
     "alt": [".js", ".jsx", ".ts", ".tsx", "/index.js", "/index.jsx", "/index.ts", "/index.tsx"],
     "modmap": {
       "components": "/components",
-      "publis": "/public",
+      "public": "/public",
       "hooks": "/hooks",
       "contexts": "/contexts",
       "pages": "/pages",

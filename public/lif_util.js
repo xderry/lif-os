@@ -9,6 +9,7 @@ const ewait = ()=>{
   });
   promise.return = _return;
   promise.throw = _throw;
+  promise.catch(err=>{}); // catch un-waited wait() objects. avoid Uncaught in promise
   return promise;
 };
 exports.ewait = ewait;

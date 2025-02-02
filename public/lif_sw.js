@@ -1,5 +1,6 @@
 /*global importScripts*/ // ServiceWorkerGlobalScope
 let lif_sw;
+let lif_version = '0.2.16';
 const ewait = ()=>{
   let _return, _throw;
   let promise = new Promise((resolve, reject)=>{
@@ -8,6 +9,7 @@ const ewait = ()=>{
   });
   promise.return = _return;
   promise.throw = _throw;
+  promise.catch(err=>{}); // catch un-waited wait() objects. avoid Uncaught in promise
   return promise;
 };
 
@@ -15,6 +17,7 @@ lif_sw = {
   on_message: null,
   on_fetch: null,
   wait_activate: ewait(),
+  version: lif_version,
 };
 
 // service worker must register handlers on first run (not async)
@@ -233,6 +236,11 @@ let file_ast = f=>{
       has_require ? 'cjs' : '';
   };
 
+  let ext = path_ext(f.uri);
+  if (ext=='.json'){
+    f.type = 'json';
+    return;
+  }
   tr_jsx_ts();
   parse_ast();
   scan_ast();
@@ -519,11 +527,11 @@ let npm_file_lookup = (pkg, file)=>{
   // start package.json lookup
   let v, alt;
   let {file: f, type} = parse_pkg()||{file};
-  type ||= pkg?.lif?.type;
+  type ||= pkg.lif?.type;
   if (f.startsWith('./'))
     f = f.slice(2);
   if (!path_ext(f))
-    alt = pkg?.lif?.alt || ['.js'];
+    alt = pkg.lif?.alt || ['.js'];
   return {file: f, type, alt};
 };
 
@@ -563,7 +571,7 @@ async function npm_pkg_load(log, mod_ver){
   }
 }
 
-async function npm_file_load(log, uri){
+async function npm_file_load(log, uri, test_alt){
   let file, do_log = false;
   if (file = npm_file[uri])
     return await file.wait;
@@ -577,15 +585,17 @@ async function npm_file_load(log, uri){
   file.alt = alt;
   if (file.redirect)
     return file.wait.return(file);
-  // prepare file list
+  // fetch the file
   let response = await fetch(file.url);
   if (response.status!=200){
+    if (test_alt)
+      throw file.wait.throw(Error('fetch failed '+file.url));
     if (alt){
       let afile, err;
-      for (let a of alt){
+      loop: for (let a of alt){
         try {
-          afile = await npm_file_load(log, uri+a);
-          break;
+          afile = await npm_file_load(log, uri+a, true);
+          break loop;
         } catch(err){}
       }
       if (afile){
@@ -594,9 +604,10 @@ async function npm_file_load(log, uri){
         return file.wait.return(file);
       }
     }
-    console.error('fetch fail '+file.url+' '+alt.join(' ')+' for '+log.mod);
-    throw file.wait.throw(Error('module('+log.mod+', alt '+alt.join(' ')+') '+
-      'failed fetch '+file.url));
+    let e = 'module('+log.mod+(alt ? ' alt '+alt.join(' ') : '')+
+      ') failed fetch '+file.url;
+    console.error(e);
+    throw file.wait.throw(Error(e));
   }
   file.body = await response.text();
   do_log && console.log('fetch OK '+file.url);
@@ -631,10 +642,10 @@ async function _sw_fetch(event){
       return Response.redirect(f.redirect);
     }
     file_ast(f);
-    f.type = f.type_ast||f.type_lookup;
     log('npm', f.type);
     let js = f.js;
-    if (f.type=='raw');
+    if (f.type=='raw' || f.type=='json')
+      js = f.body;
     else if (f.type=='amd')
       js = file_tr_amd(f);
     else if (f.type=='cjs' || !f.type)
@@ -644,7 +655,8 @@ async function _sw_fetch(event){
     else
       throw Error('invalid type '+f.type);
     log(`module ${uri} served ${f.uri}`);
-    return new Response(js, {headers: headers.js});
+    return new Response(js, {
+      headers: headers[f.type=='json' ? 'json' : 'js']});
   }
   if (v=str.prefix(path, '/.lif/npm.cjs/')){
     log('npm.cjs');
@@ -691,6 +703,7 @@ async function sw_fetch(event){
 
 function sw_init_post(){
   app_chan = new util.postmessage_chan();
+  app_chan.add_server_cmd('version', arg=>({version: lif_version}));
   lif_sw.on_message = event=>{
     if (app_chan.listen(event))
       return;
@@ -705,5 +718,6 @@ function sw_init_post(){
   lif_sw.wait_activate.return();
 }
 sw_init_post();
+console.log('lif sw '+lif_sw.version);
 } catch(err){console.error('failed sw init', err);}})();
 
