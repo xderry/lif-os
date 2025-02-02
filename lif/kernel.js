@@ -1,6 +1,6 @@
 let lif = window.lif = {};
 let lif_version = '0.2.19';
-import util from './lif_util.js';
+import util from './util.js';
 let {ewait, esleep, eslow, postmessage_chan, path_file,
   url_uri_parse, npm_uri_parse, _debugger} = util;
 
@@ -142,7 +142,7 @@ async function _import(url, opt){
   let _url = module_get_url_uri(opt?.mod_self||'', url);
   return await import(_url, opt);
 }
-lif.boot = {
+lif.kernel = {
   process,
   define,
   require,
@@ -156,7 +156,7 @@ lif.boot = {
   import: _import,
   version: lif_version,
 };
-lb = lif.boot;
+lb = lif.kernel;
 window.define = define;
 window.require = require;
 window.process = process;
@@ -191,7 +191,7 @@ let launch_app = async()=>{
     throw err;
   }
 };
-let lif_boot_start = async()=>{
+let lif_kernel_start = async()=>{
   try {
     const registration = await navigator.serviceWorker.register('/lif_sw.js');
     await navigator.serviceWorker.ready;
@@ -200,9 +200,9 @@ let lif_boot_start = async()=>{
       sw_chan.connect(navigator.serviceWorker.controller);
       sw_chan.add_server_cmd('import', async({arg})=>await import_do(arg));
       sw_chan.add_server_cmd('version', arg=>({version: lif_version}));
-      console.log('lif boot version: '+lif_version+' util '+util.version);
-      console.log('lif sw version: '+(await sw_chan.cmd('version')).version);
-      console.log('lif boot: ServiceWorker registred. Booting app');
+      console.log('lif kernel version: '+lif_version+' util '+util.version);
+      console.log('lif bios sw version: '+(await sw_chan.cmd('version')).version);
+      console.log('lif kernel: ServiceWorker registred. Booting app');
       launch_app();
     };
     // this launches the React app if the SW has been installed before or
@@ -216,4 +216,4 @@ let lif_boot_start = async()=>{
     console.error('ServiceWorker registration failed', err, err.stack);
   }
 };
-lif_boot_start();
+lif_kernel_start();

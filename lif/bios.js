@@ -1,5 +1,4 @@
 /*global importScripts*/ // ServiceWorkerGlobalScope
-let lif_sw;
 let lif_version = '0.2.21';
 const ewait = ()=>{
   let _return, _throw;
@@ -259,16 +258,16 @@ const file_tr_amd = f=>{
   });
   _exports += `export default mod.exports;\n`;
   return f.tr_amd = `
-    let lb = window.lif.boot;
+    let lif_kernel = window.lif.kernel;
     let define = function(id, deps, factory){
-      return lb.define_amd(${uri_s}, arguments); };
+      return lif_kernel.define_amd(${uri_s}, arguments); };
     define.amd = {};
     let require = function(deps, cb){
-      return lb.require_cjs_amd(${uri_s}, arguments); };
+      return lif_kernel.require_cjs_amd(${uri_s}, arguments); };
     (()=>{
     ${f.js}
     })();
-    let mod = await lb.module_get(${uri_s});
+    let mod = await lif_kernel.module_get(${uri_s});
     ${_exports}
   `;
 };
@@ -340,14 +339,14 @@ const file_tr_cjs = f=>{
       pre += 'await require_async('+json(r.module)+');\n';
   }
   return f.tr_cjs = `
-    let lb = window.lif.boot;
+    let lif_kernel = window.lif.kernel;
     let module = {exports: {}};
     let exports = module.exports;
-    let process = lb.process;
-    let require = module=>lb.require_cjs(${uri_s}, module);
-    let require_async = async(module)=>await lb.require_single(${uri_s}, module);
+    let process = lif_kernel.process;
+    let require = module=>lif_kernel.require_cjs(${uri_s}, module);
+    let require_async = async(module)=>await lif_kernel.require_single(${uri_s}, module);
     let define = function(id, deps, factory){
-      return lb.define_amd(${uri_s}, arguments, module); };
+      return lif_kernel.define_amd(${uri_s}, arguments, module); };
     define.amd = {};
     ${pre}
     await (async()=>{
@@ -401,8 +400,8 @@ const file_tr_mjs = f=>{
   let uri_s = json(f.uri);
   let tr = tr_mjs_import(f);
   return f.tr_mjs = `
-    let lb = window.lif.boot;
-    let import_lif = function(){ return lb.import(${uri_s}, arguments); };
+    let lif_kernel = window.lif.kernel;
+    let import_lif = function(){ return lif_kernel.import(${uri_s}, arguments); };
     ${tr}
   `;
 };
@@ -616,7 +615,7 @@ async function npm_file_load(log, uri, test_alt){
 }
  
 let app_chan;
-async function _sw_fetch(event){
+async function _bios_fetch(event){
   let {request, request: {url}} = event;
   let u = url_parse(url);
   let ref = request.headers.get('referer');
@@ -688,15 +687,15 @@ async function _sw_fetch(event){
   return await fetch(request);
 }
 
-async function sw_fetch(event){
+async function bios_fetch(event){
   let slow;
   try {
-    slow = eslow(5000, ['_sw_fetch', event.request.url]);
-    let res = await _sw_fetch(event);
+    slow = eslow(5000, ['_bios_fetch', event.request.url]);
+    let res = await _bios_fetch(event);
     slow.end();
     return res;
   } catch (err){
-    console.error('ServiceWorker sw_fetch err', err);
+    console.error('ServiceWorker bios_fetch err', err);
     slow.end();
     return new Response(''+err, {status: 500, statusText: ''+err});
   }
