@@ -1,5 +1,5 @@
 /*global importScripts*/ // ServiceWorkerGlobalScope
-let lif_version = '0.2.23';
+let lif_version = '0.2.30';
 const ewait = ()=>{
   let _return, _throw;
   let promise = new Promise((resolve, reject)=>{
@@ -243,6 +243,7 @@ let file_ast = f=>{
       },
       ExportNamedDeclaration: path=>{ has_export = true; },
       ExportDefaultDeclaration: path=>{ has_export = true; },
+      ExportAllDeclaration: path=>{ has_export = true; },
       AwaitExpression: path=>{
         let type = ast_get_scope_type(path);
         if (type=='program')
@@ -524,13 +525,17 @@ let npm_file_lookup = (pkg, file)=>{
       return v;
   };
   // start package.json lookup
-  let v, alt;
+  let v;
   let {file: f, type} = parse_pkg()||{file};
   type ||= pkg.lif?.type;
   if (f.startsWith('./'))
     f = f.slice(2);
-  if (!path_ext(f))
-    alt = pkg.lif?.alt || ['.js'];
+  let alt, _alt = pkg.lif?.alt||['.js'];
+  if (!['.js', '.json', '.css', '.mjs', '.esm', '.jsx', '.ts', '.tsx']
+    .find(e=>f.endsWith(e)) && !_alt.find(e=>f.endsWith(e)))
+  {
+    alt = _alt;
+  }
   return {file: f, type, alt};
 };
 
@@ -563,7 +568,6 @@ async function npm_pkg_load(log, mod_ver){
       throw Error('empty package.json '+url);
     if (!pkg.version)
       throw Error('invalid package.json '+url);
-    npm.alt = pkg.lif?.alt;
     return npm.wait.return(npm);
   } catch(err){
     throw npm.wait.throw(err);
@@ -575,7 +579,6 @@ async function npm_file_load(log, uri, test_alt){
   if (file = npm_file[uri])
     return await file.wait;
   file = npm_file[uri] = {uri, wait: ewait(), log};
-  log('load1', uri, npm_uri_parse(uri), npm_modver(npm_uri_parse(uri)));
   file.npm = await npm_pkg_load(log, npm_modver(npm_uri_parse(uri)));
   let {nfile, type, redirect, alt} = file.npm.file_lookup(uri);
   file.nfile = nfile;
@@ -622,7 +625,7 @@ async function _bios_fetch(event){
   let external = u.origin!=self.location.origin;
   let log_mod = url+(ref && ref!=u.origin+'/' ? ' ref '+ref : '');
   let path = u.path;
-  let log = function(){ if (!url.includes('/stylis')) return;
+  let log = function(){ if (!url.includes(' none ')) return;
     console.log(url, ...arguments); };
   log.mod = log_mod;
   if (request.method!='GET')
@@ -694,7 +697,7 @@ async function bios_fetch(event){
     slow.end();
     return res;
   } catch (err){
-    console.error('lif bios bios_fetch err', err);
+    console.error('bios_fetch err', err);
     slow.end();
     return new Response(''+err, {status: 500, statusText: ''+err});
   }

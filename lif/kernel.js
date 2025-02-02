@@ -1,5 +1,5 @@
 let lif = window.lif = {};
-let lif_version = '0.2.23';
+let lif_version = '0.2.24';
 import util from './util.js';
 let {ewait, esleep, eslow, postmessage_chan, path_file,
   url_uri_parse, npm_uri_parse, _debugger} = util;
@@ -184,6 +184,7 @@ let import_do = async({url, opt})=>{
 };
 let boot_app = async()=>{
   let url = window.lif_boot_url || 'lif.app/pages/index.tsx';
+  console.log('kernel: boot '+url);
   try {
     return await _import(url);
   } catch (err){
@@ -202,8 +203,7 @@ let lif_kernel_start = async()=>{
       bios_chan.add_server_cmd('version', arg=>({version: lif_version}));
       console.log('lif kernel version: '+lif_version+' util '+util.version);
       console.log('lif bios sw version: '+(await bios_chan.cmd('version')).version);
-      console.log('lif kernel: ServiceWorker registred. Booting app');
-      boot_app();
+      await boot_app();
     };
     // this boots the React app if the SW has been installed before or
     // immediately after registration
@@ -216,4 +216,5 @@ let lif_kernel_start = async()=>{
     console.error('ServiceWorker registration failed', err, err.stack);
   }
 };
-lif_kernel_start();
+await lif_kernel_start();
+console.log('kernel: boot complete');
