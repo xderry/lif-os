@@ -1,4 +1,6 @@
+let util_version = '0.2.20';
 let exports = {};
+exports.version = util_version;
 
 // Promise with return() and throw()
 const ewait = ()=>{
@@ -203,7 +205,7 @@ exports.url_uri_parse = url_uri_parse;
 
 // parse-package-name
 const npm_uri_parse = path=>{
-  const RE_SCOPED = /^(@[^\/]+\/[^@\/]+)(?:@([^\/]+))?(\/.*)?$/
+  const RE_SCOPED = /^(@[^\/]+\/[^@\/]+)(?:(@[^\/]+))?(\/.*)?$/
   const RE_NON_SCOPED = /^([^@\/]+)(?:(@[^\/]+))?(\/.*)?$/
   const m = RE_SCOPED.exec(path) || RE_NON_SCOPED.exec(path)
   return !m ? null : {name: m[1]|| '', version: m[2]|| '', path: m[3]||''};

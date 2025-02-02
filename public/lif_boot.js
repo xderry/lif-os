@@ -1,5 +1,5 @@
 let lif = window.lif = {};
-let lif_version = '0.2.12';
+let lif_version = '0.2.19';
 import util from './lif_util.js';
 let {ewait, esleep, eslow, postmessage_chan, path_file,
   url_uri_parse, npm_uri_parse, _debugger} = util;
@@ -200,7 +200,7 @@ let lif_boot_start = async()=>{
       sw_chan.connect(navigator.serviceWorker.controller);
       sw_chan.add_server_cmd('import', async({arg})=>await import_do(arg));
       sw_chan.add_server_cmd('version', arg=>({version: lif_version}));
-      console.log('lif boot version: '+lif_version);
+      console.log('lif boot version: '+lif_version+' util '+util.version);
       console.log('lif sw version: '+(await sw_chan.cmd('version')).version);
       console.log('lif boot: ServiceWorker registred. Booting app');
       launch_app();

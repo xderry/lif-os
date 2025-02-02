@@ -1,6 +1,6 @@
 /*global importScripts*/ // ServiceWorkerGlobalScope
 let lif_sw;
-let lif_version = '0.2.16';
+let lif_version = '0.2.21';
 const ewait = ()=>{
   let _return, _throw;
   let promise = new Promise((resolve, reject)=>{
@@ -52,7 +52,7 @@ let import_module = async(url)=>{
   try {
     let response = await fetch(url);
     if (response.status!=200)
-      throw Error('import('+url+') failed fetch');
+      throw Error('sw import_module('+url+') failed fetch');
     let body = await response.text();
     let tr = body.replace(/\nexport default ([^;]+);\n/,
       (match, _export)=>'\n;module.exports = '+_export+';\n');
@@ -576,6 +576,7 @@ async function npm_file_load(log, uri, test_alt){
   if (file = npm_file[uri])
     return await file.wait;
   file = npm_file[uri] = {uri, wait: ewait()};
+  log('load1', uri, npm_uri_parse(uri), npm_modver(npm_uri_parse(uri)));
   file.npm = await npm_pkg_load(log, npm_modver(npm_uri_parse(uri)));
   let {nfile, type, redirect, alt} = file.npm.file_lookup(uri);
   file.nfile = nfile;
@@ -718,6 +719,6 @@ function sw_init_post(){
   lif_sw.wait_activate.return();
 }
 sw_init_post();
-console.log('lif sw '+lif_sw.version);
+console.log('lif sw '+lif_sw.version+' util '+util.version);
 } catch(err){console.error('failed sw init', err);}})();
 
