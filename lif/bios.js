@@ -1,5 +1,5 @@
 /*global importScripts*/ // ServiceWorkerGlobalScope
-let lif_version = '0.2.21';
+let lif_version = '0.2.23';
 const ewait = ()=>{
   let _return, _throw;
   let promise = new Promise((resolve, reject)=>{
@@ -12,7 +12,7 @@ const ewait = ()=>{
   return promise;
 };
 
-lif_sw = {
+let lif_bios = {
   on_message: null,
   on_fetch: null,
   wait_activate: ewait(),
@@ -24,18 +24,18 @@ function sw_init_pre(){
   // this is needed to activate the worker immediately without reload
   // @see https://developers.google.com/web/fundamentals/primers/service-workers/lifecycle#clientsclaim
   self.addEventListener('activate', event=>event.waitUntil((async()=>{
-    await lif_sw.wait_activate;
+    await lif_bios.wait_activate;
     await self.clients.claim();
   })()));
   self.addEventListener("message", event=>{
-    if (!lif_sw.on_message)
+    if (!lif_bios.on_message)
       console.error('sw message event before inited', event);
-    lif_sw.on_message(event);
+    lif_bios.on_message(event);
   });
   self.addEventListener('fetch', event=>{
-    if (!lif_sw.on_fetch)
+    if (!lif_bios.on_fetch)
       console.error('sw fetch('+event.request.url+') event before inited');
-    lif_sw.on_fetch(event);
+    lif_bios.on_fetch(event);
   });
 }
 sw_init_pre();
@@ -77,7 +77,7 @@ let import_module = async(url)=>{
 };
 
 let Babel = await import_module('https://unpkg.com/@babel/standalone@7.26.4/babel.js');
-let util = await import_module('/lif/lif_util.js');
+let util = await import_module('/lif/util.js');
 let {postmessage_chan, str, OF, path_ext, path_file, path_dir, path_is_dir,
   url_parse, uri_parse, url_uri_parse, npm_uri_parse, esleep, eslow} = util;
 let {qw} = str;
@@ -145,6 +145,24 @@ let npm_static = {
 
 let parser = Babel.packages.parser;
 let traverse = Babel.packages.traverse.default;
+
+let ast_get_scope_type = path=>{
+  for (; path; path=path.parentPath){
+    if (path.type=='TryStatement')
+      return 'try';
+    let b = path.scope.block;
+    if (b.type=='FunctionExpression' ||
+      b.type=='ArrowFunctionExpression' ||
+      b.type=='FunctionDeclaration')
+    {
+      return b.async ? 'async' : 'sync';
+    }
+    if (b.type=='CatchClause')
+      return 'catch';
+    if (b.type=='Program')
+      return 'program';
+  }
+};
 
 let file_ast = f=>{
   if (f.ast)
@@ -272,16 +290,16 @@ const file_tr_amd = f=>{
   `;
 };
 
-const file_tr_cjs_shim = async(log, f)=>{
+const file_tr_cjs_shim = async(f)=>{
   if (f.wait_tr_cjs)
     return await f.wait_tr_cjs;
   let p = f.wait_tr_cjs = ewait();
   let uri_s = json(f.uri);
   let _exports = '';
   let npm_cjs_uri = '/.lif/npm.cjs/'+f.uri;
-  log('call import('+npm_cjs_uri+')');
-  let res = await app_chan.cmd('import', {url: npm_cjs_uri});
-  log('ret  import('+npm_cjs_uri+')', res);
+  f.log('call import('+npm_cjs_uri+')');
+  let res = await kern_chan.cmd('import', {url: npm_cjs_uri});
+  f.log('ret  import('+npm_cjs_uri+')', res);
   f.exports_cjs_shim = res.exports;
   f.exports_cjs_shim.forEach(e=>{
     if (e=='default')
@@ -293,24 +311,6 @@ const file_tr_cjs_shim = async(log, f)=>{
     export default _export;
     ${_exports}
   `);
-};
-
-let ast_get_scope_type = path=>{
-  for (; path; path=path.parentPath){
-    if (path.type=='TryStatement')
-      return 'try';
-    let b = path.scope.block;
-    if (b.type=='FunctionExpression' ||
-      b.type=='ArrowFunctionExpression' ||
-      b.type=='FunctionDeclaration')
-    {
-      return b.async ? 'async' : 'sync';
-    }
-    if (b.type=='CatchClause')
-      return 'catch';
-    if (b.type=='Program')
-      return 'program';
-  }
 };
 
 let tr_cjs_require = f=>{
@@ -538,7 +538,7 @@ async function npm_pkg_load(log, mod_ver){
   let npm, npm_s;
   if (npm = npm_pkg[mod_ver])
     return await npm.wait;
-  npm = npm_pkg[mod_ver] = {mod_ver, wait: ewait()};
+  npm = npm_pkg[mod_ver] = {mod_ver, wait: ewait(), log};
   npm.file_lookup = uri=>{
     let {path} = npm_uri_parse(uri);
     let ofile = path.replace(/^\//, '')||'.';
@@ -574,7 +574,7 @@ async function npm_file_load(log, uri, test_alt){
   let file, do_log = false;
   if (file = npm_file[uri])
     return await file.wait;
-  file = npm_file[uri] = {uri, wait: ewait()};
+  file = npm_file[uri] = {uri, wait: ewait(), log};
   log('load1', uri, npm_uri_parse(uri), npm_modver(npm_uri_parse(uri)));
   file.npm = await npm_pkg_load(log, npm_modver(npm_uri_parse(uri)));
   let {nfile, type, redirect, alt} = file.npm.file_lookup(uri);
@@ -614,7 +614,7 @@ async function npm_file_load(log, uri, test_alt){
   return file.wait.return(file);
 }
  
-let app_chan;
+let kern_chan;
 async function _bios_fetch(event){
   let {request, request: {url}} = event;
   let u = url_parse(url);
@@ -622,9 +622,8 @@ async function _bios_fetch(event){
   let external = u.origin!=self.location.origin;
   let log_mod = url+(ref && ref!=u.origin+'/' ? ' ref '+ref : '');
   let path = u.path;
-  let log = function(){ if (!url.includes(' none ')) return;
+  let log = function(){ if (!url.includes('/stylis')) return;
     console.log(url, ...arguments); };
-  log.l = log;
   log.mod = log_mod;
   if (request.method!='GET')
     return fetch(request);
@@ -649,7 +648,7 @@ async function _bios_fetch(event){
     else if (f.type=='amd')
       js = file_tr_amd(f);
     else if (f.type=='cjs' || !f.type)
-      js = await file_tr_cjs_shim(log, f);
+      js = await file_tr_cjs_shim(f);
     else if (f.type=='mjs')
       js = file_tr_mjs(f);
     else
@@ -695,29 +694,29 @@ async function bios_fetch(event){
     slow.end();
     return res;
   } catch (err){
-    console.error('ServiceWorker bios_fetch err', err);
+    console.error('lif bios bios_fetch err', err);
     slow.end();
     return new Response(''+err, {status: 500, statusText: ''+err});
   }
 }
 
 function sw_init_post(){
-  app_chan = new util.postmessage_chan();
-  app_chan.add_server_cmd('version', arg=>({version: lif_version}));
-  lif_sw.on_message = event=>{
-    if (app_chan.listen(event))
+  kern_chan = new util.postmessage_chan();
+  kern_chan.add_server_cmd('version', arg=>({version: lif_version}));
+  lif_bios.on_message = event=>{
+    if (kern_chan.listen(event))
       return;
   };
-  lif_sw.on_fetch = event=>{
+  lif_bios.on_fetch = event=>{
     try {
-      event.respondWith(sw_fetch(event));
+      event.respondWith(bios_fetch(event));
     } catch (err){
-      console.error("ServiceWorker NetworkError: "+err);
+      console.error("lif bios sw NetworkError: "+err);
     }
   };
-  lif_sw.wait_activate.return();
+  lif_bios.wait_activate.return();
 }
 sw_init_post();
-console.log('lif sw '+lif_sw.version+' util '+util.version);
-} catch(err){console.error('failed sw init', err);}})();
+console.log('lif bios sw '+lif_bios.version+' util '+util.version);
+} catch(err){console.error('lif bios failed sw init', err);}})();
 

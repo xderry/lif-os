@@ -15,14 +15,13 @@ const server = http.createServer((req, res)=>{
   const url = req.url;
   res.on('finish', ()=>console.log(
     `${log_url} ${res.statusCode} ${res.statusMessage}`));
-  let file;
-  let v;
+  let file, v;
   if (url=='/')
     url = '/index.html';
   if (v=is_prefix(url, '/lif.app/'))
     file = '/'+v.rest;
   else if (v=is_prefix(url, '/lif/'))
-    file = '/public/'+v.rest;
+    file = '/lif/'+v.rest;
   else
     file = '/public'+url;
   if (file)

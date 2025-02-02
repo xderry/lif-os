@@ -1,12 +1,12 @@
 let lif = window.lif = {};
-let lif_version = '0.2.19';
+let lif_version = '0.2.23';
 import util from './util.js';
 let {ewait, esleep, eslow, postmessage_chan, path_file,
   url_uri_parse, npm_uri_parse, _debugger} = util;
 
 let modules = {};
 let lb;
-let sw_chan;
+let bios_chan;
 
 let process =  {env: {}};
 function define(){ return define_amd(arguments[0], arguments); }
@@ -182,8 +182,8 @@ let import_do = async({url, opt})=>{
     throw err;
   }
 };
-let launch_app = async()=>{
-  let url = window.launch_url || 'lif.app/pages/index.tsx';
+let boot_app = async()=>{
+  let url = window.lif_boot_url || 'lif.app/pages/index.tsx';
   try {
     return await _import(url);
   } catch (err){
@@ -193,25 +193,25 @@ let launch_app = async()=>{
 };
 let lif_kernel_start = async()=>{
   try {
-    const registration = await navigator.serviceWorker.register('/lif_sw.js');
+    const registration = await navigator.serviceWorker.register('/lif_bios_sw.js');
     await navigator.serviceWorker.ready;
-    const launch = async()=>{
-      sw_chan = new postmessage_chan();
-      sw_chan.connect(navigator.serviceWorker.controller);
-      sw_chan.add_server_cmd('import', async({arg})=>await import_do(arg));
-      sw_chan.add_server_cmd('version', arg=>({version: lif_version}));
+    const boot = async()=>{
+      bios_chan = new postmessage_chan();
+      bios_chan.connect(navigator.serviceWorker.controller);
+      bios_chan.add_server_cmd('import', async({arg})=>await import_do(arg));
+      bios_chan.add_server_cmd('version', arg=>({version: lif_version}));
       console.log('lif kernel version: '+lif_version+' util '+util.version);
-      console.log('lif bios sw version: '+(await sw_chan.cmd('version')).version);
+      console.log('lif bios sw version: '+(await bios_chan.cmd('version')).version);
       console.log('lif kernel: ServiceWorker registred. Booting app');
-      launch_app();
+      boot_app();
     };
-    // this launches the React app if the SW has been installed before or
+    // this boots the React app if the SW has been installed before or
     // immediately after registration
     // https://developers.google.com/web/fundamentals/primers/service-workers/lifecycle#clientsclaim
     if (navigator.serviceWorker.controller)
-      await launch();
+      await boot();
     else
-      navigator.serviceWorker.addEventListener('controllerchange', launch);
+      navigator.serviceWorker.addEventListener('controllerchange', boot);
   } catch (err){
     console.error('ServiceWorker registration failed', err, err.stack);
   }
