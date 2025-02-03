@@ -106,6 +106,9 @@ async function require_single(mod_self, module_id){
   m = modules[module_id] = {module_id, deps: [], promise,
     loaded: false, module: {exports: {}}};
   let url = module_get_url_uri(mod_self, module_id);
+  console.log('call get_url_uri('+module_id+')');
+  //let res = await bios_chan.cmd('get_url_uri', {mod_self, uri});
+  //console.log('ret get_url_url('+module_id+')', res);
   let slow;
   try {
     slow = eslow(5000, ['import('+module_id+')', url]);
