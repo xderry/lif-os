@@ -138,8 +138,8 @@ function module_get_url_uri(mod_self, module_id){
     '/.lif/npm/'+module_id;
 }
 
-async function _import(url, opt){
-  let _url = module_get_url_uri(opt?.mod_self||'', url);
+async function _import(mod_self, [url, opt]){
+  let _url = module_get_url_uri(mod_self, url);
   return await import(_url, opt);
 }
 lif.kernel = {
@@ -153,7 +153,7 @@ lif.kernel = {
   require_cjs_amd,
   require_single,
   require_cjs_shim,
-  import: _import,
+  _import,
   version: lif_version,
 };
 lb = lif.kernel;
@@ -182,39 +182,44 @@ let import_do = async({url, opt})=>{
     throw err;
   }
 };
-let boot_app = async()=>{
+let lif_app_boot = async()=>{
   let url = window.lif_boot_url || 'lif.app/pages/index.tsx';
   console.log('kernel: boot '+url);
   try {
-    return await _import(url);
+    return await _import('/', [url]);
   } catch (err){
     console.error('import('+url+') failed', err);
     throw err;
   }
 };
 let lif_kernel_boot = async()=>{
+  let wait = ewait();
   try {
     const registration = await navigator.serviceWorker.register('/lif_bios_sw.js');
     await navigator.serviceWorker.ready;
-    const boot = async()=>{
+    const boot_bios = async()=>{
       bios_chan = new postmessage_chan();
       bios_chan.connect(navigator.serviceWorker.controller);
       bios_chan.add_server_cmd('import', async({arg})=>await import_do(arg));
       bios_chan.add_server_cmd('version', arg=>({version: lif_version}));
       console.log('lif kernel version: '+lif_version+' util '+util.version);
       console.log('lif bios sw version: '+(await bios_chan.cmd('version')).version);
-      await boot_app();
+      wait.return();
     };
     // this boots the React app if the SW has been installed before or
     // immediately after registration
     // https://developers.google.com/web/fundamentals/primers/service-workers/lifecycle#clientsclaim
     if (navigator.serviceWorker.controller)
-      await boot();
+      await boot_bios();
     else
-      navigator.serviceWorker.addEventListener('controllerchange', boot);
+      navigator.serviceWorker.addEventListener('controllerchange', boot_bios);
+    return wait;
   } catch (err){
     console.error('ServiceWorker registration failed', err, err.stack);
+    wait.throw(err);
   }
+  return await wait;
 };
 await lif_kernel_boot();
+await lif_app_boot();
 console.log('kernel: boot complete');

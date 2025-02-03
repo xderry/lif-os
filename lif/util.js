@@ -143,7 +143,6 @@ class postmessage_chan {
   }
   listen(event){
     if (event.data?.connect){
-      console.log('new listen');
       this.port = event.ports[0];
       this.port.onmessage = event=>this.on_msg(event);
       return true;
