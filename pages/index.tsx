@@ -1,5 +1,3 @@
-import React from "react";
-window.React = React;
 import { memo } from "react";
 import AppsLoader from "components/system/Apps/AppsLoader";
 import Desktop from "components/system/Desktop";

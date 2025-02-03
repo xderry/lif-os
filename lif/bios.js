@@ -1,5 +1,5 @@
 /*global importScripts*/ // ServiceWorkerGlobalScope
-let lif_version = '0.2.30';
+let lif_version = '0.2.31';
 const ewait = ()=>{
   let _return, _throw;
   let promise = new Promise((resolve, reject)=>{

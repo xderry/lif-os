@@ -1,5 +1,5 @@
 let lif = window.lif = {};
-let lif_version = '0.2.24';
+let lif_version = '0.2.31';
 import util from './util.js';
 let {ewait, esleep, eslow, postmessage_chan, path_file,
   url_uri_parse, npm_uri_parse, _debugger} = util;
@@ -192,7 +192,7 @@ let boot_app = async()=>{
     throw err;
   }
 };
-let lif_kernel_start = async()=>{
+let lif_kernel_boot = async()=>{
   try {
     const registration = await navigator.serviceWorker.register('/lif_bios_sw.js');
     await navigator.serviceWorker.ready;
@@ -216,5 +216,5 @@ let lif_kernel_start = async()=>{
     console.error('ServiceWorker registration failed', err, err.stack);
   }
 };
-await lif_kernel_start();
+await lif_kernel_boot();
 console.log('kernel: boot complete');
