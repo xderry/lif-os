@@ -97,13 +97,10 @@ function require_cjs_amd(mod_self, args){
 }
 
 async function require_single(mod_self, module_id){
-  let m = modules[module_id];
-  if (m){
-    await m.promise;
-    return m.module.exports;
-  }
-  let resolve, promise = new Promise(res=>resolve = res);
-  m = modules[module_id] = {module_id, deps: [], promise,
+  let m;
+  if (m = modules[module_id])
+    return await m.wait;
+  m = modules[module_id] = {module_id, deps: [], wait: ewait(),
     loaded: false, module: {exports: {}}};
   let url = module_get_url_uri(mod_self, module_id);
   console.log('call get_url_uri('+module_id+')');
@@ -117,12 +114,11 @@ async function require_single(mod_self, module_id){
   } catch(err){
     console.error('import('+module_id+') failed. required from '+mod_self, err);
     slow.end();
-    throw err;
+    throw m.wait.throw(err);
   }
   m.loaded = true;
   m.module.exports = m.mod.default || m.mod;
-  resolve(m.module.exports);
-  return m.module.exports;
+  return m.wait.return(m.module.exports);
 }
 
 function require_cjs_shim(mod_self, module_id){
