@@ -1,8 +1,8 @@
 let lif = window.lif = {};
-let lif_version = '0.2.31';
+let lif_version = '0.2.36';
 import util from './util.js';
 let {ewait, esleep, eslow, postmessage_chan, path_file,
-  url_uri_parse, npm_uri_parse, _debugger} = util;
+  url_uri_parse, npm_uri_parse, npm_modver, _debugger} = util;
 
 let modules = {};
 let lb;
@@ -96,16 +96,34 @@ function require_cjs_amd(mod_self, args){
   throw Error('invalid call to require()');
 }
 
+let npm_pkg = {};
+async function module_get_modver(mod_self, module_id){
+  let u = url_uri_parse(module_id, '/'+mod_self);
+  if (u.is_based=='url')
+    return module_id;
+  let uri = u.is_based ? u.pathname.slice(1) : // skip leading '/'
+    module_id; // no leading '/'
+  let _uri = npm_uri_parse(uri);
+  if (_uri.version)
+    return '/.lif/npm/'+uri;
+  let modver_self = npm_modver(mod_self);
+  let pkg = npm_pkg[modver_self] ||= {};
+  let dep = pkg[_uri.name] ||= {};
+  if (!dep.dep){
+    let ver = await bios_chan.cmd('module_dep', {modver: modver_self,
+      dep: _uri.name});
+    dep.dep = _uri.name+(ver||'')+_uri.path;
+  }
+  return '/.lif/npm/'+dep.dep;
+}
+
 async function require_single(mod_self, module_id){
   let m;
   if (m = modules[module_id])
     return await m.wait;
   m = modules[module_id] = {module_id, deps: [], wait: ewait(),
     loaded: false, module: {exports: {}}};
-  let url = module_get_url_uri(mod_self, module_id);
-  console.log('call get_url_uri('+module_id+')');
-  //let res = await bios_chan.cmd('get_url_uri', {mod_self, uri});
-  //console.log('ret get_url_url('+module_id+')', res);
+  let url = await module_get_modver(mod_self, module_id);
   let slow;
   try {
     slow = eslow(5000, ['import('+module_id+')', url]);
@@ -160,12 +178,12 @@ window.define = define;
 window.require = require;
 window.process = process;
 
-let import_do = async({url, opt})=>{
+let do_import = async({url, opt})=>{
   let slow;
   try {
     let ret = {};
-    //console.log('import_do('+url+')');
-    slow = eslow(5000, ['import_do', url]);
+    //console.log('do_import('+url+')');
+    slow = eslow(5000, ['do_import', url]);
     let exports = await import(url, opt);
     slow.end();
     //console.log('import DONE('+url+')', exports);
@@ -176,7 +194,7 @@ let import_do = async({url, opt})=>{
     }
     return ret;
   } catch(err){
-    console.error('import_do('+url+') failed', err);
+    console.error('do_import('+url+') failed', err);
     slow.end();
     throw err;
   }
@@ -199,8 +217,8 @@ let lif_kernel_boot = async()=>{
     const boot_bios = async()=>{
       bios_chan = new postmessage_chan();
       bios_chan.connect(navigator.serviceWorker.controller);
-      bios_chan.add_server_cmd('import', async({arg})=>await import_do(arg));
       bios_chan.add_server_cmd('version', arg=>({version: lif_version}));
+      bios_chan.add_server_cmd('import', async({arg})=>await do_import(arg));
       console.log('lif kernel version: '+lif_version+' util '+util.version);
       console.log('lif bios sw version: '+(await bios_chan.cmd('version')).version);
       wait.return();

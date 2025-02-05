@@ -1,4 +1,4 @@
-let util_version = '0.2.23';
+let util_version = '0.2.25';
 let exports = {};
 exports.version = util_version;
 
@@ -207,9 +207,15 @@ const npm_uri_parse = path=>{
   const RE_SCOPED = /^(@[^\/]+\/[^@\/]+)(?:(@[^\/]+))?(\/.*)?$/
   const RE_NON_SCOPED = /^([^@\/]+)(?:(@[^\/]+))?(\/.*)?$/
   const m = RE_SCOPED.exec(path) || RE_NON_SCOPED.exec(path)
-  return !m ? null : {name: m[1]|| '', version: m[2]|| '', path: m[3]||''};
+  return !m ? null : {name: m[1]||'', version: m[2]||'', path: m[3]||''};
 };
 exports.npm_uri_parse = npm_uri_parse;
+const npm_modver = uri=>{
+  if (typeof uri=='string')
+    uri = npm_uri_parse(uri);
+  return uri.name+uri.version;
+};
+exports.npm_modver = npm_modver;
 
 // useful debugging script: stop on first time
 //{ if (file.includes('getProto') && match.includes('getPro') && !self._x_) {self._x_=1; debugger;} }

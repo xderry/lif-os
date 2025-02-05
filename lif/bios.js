@@ -1,5 +1,5 @@
 /*global importScripts*/ // ServiceWorkerGlobalScope
-let lif_version = '0.2.32';
+let lif_version = '0.2.36';
 const ewait = ()=>{
   let _return, _throw;
   let promise = new Promise((resolve, reject)=>{
@@ -79,11 +79,11 @@ let import_module = async(url)=>{
 let Babel = await import_module('https://unpkg.com/@babel/standalone@7.26.4/babel.js');
 let util = await import_module('/lif/util.js');
 let {postmessage_chan, str, OF, path_ext, path_file, path_dir, path_is_dir,
-  url_parse, uri_parse, url_uri_parse, npm_uri_parse, esleep, eslow} = util;
+  url_parse, uri_parse, url_uri_parse, npm_uri_parse, npm_modver,
+  esleep, eslow} = util;
 let {qw} = str;
 let json = JSON.stringify;
 
-const npm_modver = uri=>uri.name+uri.version;
 let npm_cdn = ['https://cdn.jsdelivr.net/npm',
   //'https://unpkg.com',
 ];
@@ -382,7 +382,7 @@ let tr_mjs_import = f=>{
       return;
     }
     if (!u.version)
-      u.version = f.npm.dep_ver_lookup(uri)||'';
+      u.version = npm_dep_ver_lookup(f.npm.pkg, uri)||'';
     return '/.lif/npm/'+u.name+u.version+u.path;
   };
   let s = '', src = f.js, pos = 0, v;
@@ -434,14 +434,22 @@ let content_type_get = destination=>{
 };
 
 let npm_dep_ver_lookup = (pkg, module)=>{
-  let ver = pkg.dependencies?.[module];
-  if (!ver)
-    return;
-  if (ver[0]=='^' || ver[0]=='=')
-    ver = ver.slice(1);
-  return '@'+ver;
+  let get_dep = dep=>{
+    let ver = dep?.[module];
+    if (!ver)
+      return;
+    if (ver[0]=='^' || ver[0]=='=')
+      ver = ver.slice(1);
+    return '@'+ver;
+  };
+  let ver
+  if (ver = get_dep(pkg.dependencies))
+    return ver;
+  if (ver = get_dep(pkg.peerDependencies))
+    return ver;
+  if (ver = get_dep(pkg.devDependencies))
+    return ver;
 };
-
 
 // TODO support longer matches first /a/b/c matches before /a/b
 let file_match = (file, match)=>{
@@ -548,11 +556,11 @@ let npm_file_lookup = (pkg, file)=>{
   return {file: f, type, alt};
 };
 
-async function npm_pkg_load(log, mod_ver){
+async function npm_pkg_load(log, modver){
   let npm, npm_s;
-  if (npm = npm_pkg[mod_ver])
+  if (npm = npm_pkg[modver])
     return await npm.wait;
-  npm = npm_pkg[mod_ver] = {mod_ver, wait: ewait(), log};
+  npm = npm_pkg[modver] = {modver, wait: ewait(), log};
   npm.file_lookup = uri=>{
     let {path} = npm_uri_parse(uri);
     let ofile = path.replace(/^\//, '')||'.';
@@ -560,14 +568,15 @@ async function npm_pkg_load(log, mod_ver){
     let nfile = file||ofile;
     let redirect;
     if (nfile && nfile!=ofile)
-      redirect = '/.lif/npm/'+npm.mod_ver+'/'+nfile;
+      redirect = '/.lif/npm/'+npm.modver+'/'+nfile;
     type ||= npm.type;
     return {type, redirect, nfile, alt};
   };
-  npm.dep_ver_lookup = module=>npm_dep_ver_lookup(npm.pkg, module);
   // load package.json to locate module's index.js
   try {
-    npm.pkg_base = npm_map[npm.mod_ver]||npm_cdn+'/'+npm.mod_ver;
+    let map = npm_map[npm.modver];
+    npm.pkg_base = map||npm_cdn+'/'+npm.modver;
+    let u = npm_uri_parse(npm.modver);
     let url = npm.pkg_base+'/package.json';
     let response = await fetch(url);
     if (response.status!=200)
@@ -575,8 +584,10 @@ async function npm_pkg_load(log, mod_ver){
     let pkg = npm.pkg = await response.json();
     if (!pkg)
       throw Error('empty package.json '+url);
-    if (!pkg.version)
+    if (!(npm.version = pkg.version))
       throw Error('invalid package.json '+url);
+    if (!u.version && !map)
+      npm.redirect = u.name+'@'+npm.version;
     return npm.wait.return(npm);
   } catch(err){
     throw npm.wait.throw(err);
@@ -584,14 +595,18 @@ async function npm_pkg_load(log, mod_ver){
 }
 
 async function npm_file_load(log, uri, test_alt){
-  let file, do_log = false;
+  let file, do_log = false, npm;
   if (file = npm_file[uri])
     return await file.wait;
   file = npm_file[uri] = {uri, wait: ewait(), log};
-  file.npm = await npm_pkg_load(log, npm_modver(npm_uri_parse(uri)));
-  let {nfile, type, redirect, alt} = file.npm.file_lookup(uri);
+  npm = file.npm = await npm_pkg_load(log, npm_modver(uri));
+  if (npm.redirect){
+    let u = npm_uri_parse(uri);
+    return file.wait.return({redirect: npm.redirect+u.path});
+  }
+  let {nfile, type, redirect, alt} = npm.file_lookup(uri);
   file.nfile = nfile;
-  file.url = file.npm.pkg_base+'/'+nfile;
+  file.url = npm.pkg_base+'/'+nfile;
   file.type_lookup = type;
   file.redirect = redirect;
   file.alt = alt;
@@ -712,9 +727,23 @@ async function bios_fetch(event){
   }
 }
 
+let do_module_dep = async function({modver, dep}){
+  let npm;
+  modver ||= 'lif.app';
+  try {
+    npm = await npm_pkg_load(()=>{}, modver);
+    if (npm.redirect)
+      npm = await npm_pkg_load(()=>{}, npm.redirect);
+  } catch(err){
+    return null;
+  }
+  return npm_dep_ver_lookup(npm.pkg, dep);
+};
+
 function sw_init_post(){
   kern_chan = new util.postmessage_chan();
   kern_chan.add_server_cmd('version', arg=>({version: lif_version}));
+  kern_chan.add_server_cmd('module_dep', ({arg})=>do_module_dep(arg));
   lif_bios.on_message = event=>{
     if (kern_chan.listen(event))
       return;
