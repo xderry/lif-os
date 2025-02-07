@@ -23,7 +23,7 @@ const esleep = ms=>{
 exports.esleep = esleep;
 
 const eslow = (ms, arg)=>{
-  let active = true;
+  let active = false;
   let done, timeout, at_end;
   let p = (async()=>{
     await esleep(ms);

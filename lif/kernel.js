@@ -378,10 +378,9 @@ let npm_dep_lookup = (pkg, uri)=>{
     if (v.startsWith('/'))
       v = 'lif.app'+v;
     uri = v+u.path;
-  }
-  u = npm_uri_parse(uri);
-  if (!u.version)
-    u.version = npm_dep_ver_lookup(pkg, uri)||'';
+    u = npm_uri_parse(uri);
+  } else if (!u.version)
+    u.version = npm_dep_ver_lookup(pkg, u.name)||'';
   return '/.lif/npm/'+u.name+u.version+u.path;
 };
 
