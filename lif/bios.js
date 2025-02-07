@@ -1,5 +1,5 @@
 // LIF BIOS (Basic Input Output System)
-let lif_version = '0.2.38';
+let lif_version = '0.2.50';
 
 const ewait = ()=>{
   let _return, _throw;
@@ -662,7 +662,7 @@ async function _bios_fetch(event){
   let external = u.origin!=self.location.origin;
   let log_mod = url+(ref && ref!=u.origin+'/' ? ' ref '+ref : '');
   let path = u.path;
-  let log = function(){ if (!url.includes('inherits')) return;
+  let log = function(){ if (!url.includes('')) return;
     console.log(url, ...arguments); };
   log.mod = log_mod;
   if (request.method!='GET')

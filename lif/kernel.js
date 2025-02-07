@@ -1,6 +1,6 @@
 // LIF Kernel: Boot the application
 let lif = window.lif = {};
-let lif_version = '0.2.37';
+let lif_version = '0.2.51';
 
 import util from './util.js';
 let {ewait, esleep, eslow, postmessage_chan, path_file,
@@ -99,24 +99,29 @@ function require_cjs_amd(mod_self, args){
 }
 
 let npm_pkg = {};
-async function module_get_modver(mod_self, module_id){
+async function module_get_modver(mod_self, module_id, do_log){
   let u = url_uri_parse(module_id, '/'+mod_self);
   if (u.is_based=='url')
     return module_id;
   let uri = u.is_based ? u.pathname.slice(1) : // skip leading '/'
     module_id; // no leading '/'
+  do_log && console.log('module_get: u', u, 'uri', uri);
   let _uri = npm_uri_parse(uri);
+  do_log && console.log('module_get: _uri', _uri);
   if (_uri.version)
     return '/.lif/npm/'+uri;
   let modver_self = npm_modver(mod_self);
   let pkg = npm_pkg[modver_self] ||= {};
   let dep = pkg[_uri.name] ||= {};
+  do_log && console.log('module_get: dep', dep, 'modver_self', modver_self);
   if (!dep.dep){
     let ver = await bios_chan.cmd('module_dep', {modver: modver_self,
       dep: _uri.name});
-    dep.dep = _uri.name+(ver||'')+_uri.path;
+    do_log && console.log('module_get: ver', ver);
+    dep.dep = _uri.name+(ver||'');
   }
-  return '/.lif/npm/'+dep.dep;
+  do_log && console.log('module_get: dep.dep', dep.dep, _uri);
+  return '/.lif/npm/'+dep.dep+_uri.path;
 }
 
 async function require_single(mod_self, module_id){
@@ -152,16 +157,21 @@ function require_cjs_shim(mod_self, module_id){
   return m.module;
 }
 
-function module_get_url_uri(mod_self, module_id){
-  let u = url_uri_parse(module_id, '/'+mod_self);
-  return u.is_based=='url' ? module_id :
-    u.is_based ? '/.lif/npm'+u.pathname :
-    '/.lif/npm/'+module_id;
-}
-
 async function _import(mod_self, [url, opt]){
-  let _url = module_get_url_uri(mod_self, url);
-  return await import(_url, opt);
+  console.log('import:', mod_self, url);
+  let _url = await module_get_modver(mod_self, url, 1);
+  console.log('import:', mod_self, url, '->', _url);
+  let slow;
+  try {
+    slow = eslow(5000, ['_import('+_url+')']);
+    let ret = await import(_url, opt);
+    slow.end();
+    return ret;
+  } catch(err){
+    console.error('_import('+mod_self+' '+url+' -> '+_url+')', err);
+    slow.end();
+    throw err;
+  }
 }
 lif.kernel = {
   process,
@@ -207,7 +217,7 @@ let lif_app_boot = async()=>{
   let url = window.lif_boot_url || 'lif.app/pages/index.tsx';
   console.log('kernel: boot '+url);
   try {
-    return await _import('/', [url]);
+    return await _import('lif.app', [url]);
   } catch (err){
     console.error('import('+url+') failed', err);
     throw err;

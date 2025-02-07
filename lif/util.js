@@ -1,4 +1,4 @@
-let util_version = '0.2.40';
+let util_version = '0.2.50';
 let exports = {};
 exports.version = util_version;
 
