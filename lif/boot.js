@@ -1,4 +1,4 @@
-// LIF Kernel: Boot the application
+// LIF bootloader: Boot the kernel and then load the application
 let lif = window.lif = {};
 let lif_version = '0.2.51';
 
@@ -99,29 +99,23 @@ function require_cjs_amd(mod_self, args){
 }
 
 let npm_pkg = {};
-async function module_get_modver(mod_self, module_id, do_log){
+async function module_get_modver(mod_self, module_id){
   let u = url_uri_parse(module_id, '/'+mod_self);
   if (u.is_based=='url')
     return module_id;
   let uri = u.is_based ? u.pathname.slice(1) : // skip leading '/'
     module_id; // no leading '/'
-  do_log && console.log('module_get: u', u, 'uri', uri);
   let _uri = npm_uri_parse(uri);
-  do_log && console.log('module_get: _uri', _uri);
   if (_uri.version)
     return '/.lif/npm/'+uri;
   let modver_self = npm_modver(mod_self);
   let pkg = npm_pkg[modver_self] ||= {};
   let dep = pkg[_uri.name] ||= {};
-  do_log && console.log('module_get: dep', dep, 'modver_self', modver_self);
   if (!dep.dep){
-    let ver = await kernel_chan.cmd('module_dep', {modver: modver_self,
+    dep.dep = await kernel_chan.cmd('module_dep', {modver: modver_self,
       dep: _uri.name});
-    do_log && console.log('module_get: ver', ver);
-    dep.dep = _uri.name+(ver||'');
   }
-  do_log && console.log('module_get: dep.dep', dep.dep, _uri);
-  return '/.lif/npm/'+dep.dep+_uri.path;
+  return dep.dep+_uri.path;
 }
 
 async function require_single(mod_self, module_id){
@@ -158,9 +152,7 @@ function require_cjs_shim(mod_self, module_id){
 }
 
 async function _import(mod_self, [url, opt]){
-  console.log('import:', mod_self, url);
-  let _url = await module_get_modver(mod_self, url, 1);
-  console.log('import:', mod_self, url, '->', _url);
+  let _url = await module_get_modver(mod_self, url);
   let slow;
   try {
     slow = eslow(5000, ['_import('+_url+')']);
@@ -196,11 +188,9 @@ let do_import = async({url, opt})=>{
   let slow;
   try {
     let ret = {};
-    //console.log('do_import('+url+')');
     slow = eslow(5000, ['do_import', url]);
     let exports = await import(url, opt);
     slow.end();
-    //console.log('import DONE('+url+')', exports);
     ret.exports = [];
     if (typeof exports=='object' && !Array.isArray(exports.default)){
       for (let i in exports.default)

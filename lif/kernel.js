@@ -1,4 +1,4 @@
-// LIF BIOS (Basic Input Output System)
+// LIF Kernel: Service Worker BIOS (Basic Input Output System)
 let lif_version = '0.2.50';
 
 const ewait = ()=>{
@@ -366,34 +366,31 @@ const file_tr_cjs = f=>{
 
 let str_splice = (s, at, len, add)=>s.slice(0, at)+add+s.slice(at+len);
 
+let npm_dep_lookup = (pkg, uri)=>{
+  let v, u = url_uri_parse(uri);
+  if (u.is_based)
+    return uri;
+  if (!(u = npm_uri_parse(uri))){
+    console.error('invalid npm uri import('+uri+')');
+    return uri;
+  }
+  if (v = pkg.lif?.modmap?.[u.name+u.version]){
+    if (v.startsWith('/'))
+      v = 'lif.app'+v;
+    uri = v+u.path;
+  }
+  u = npm_uri_parse(uri);
+  if (!u.version)
+    u.version = npm_dep_ver_lookup(pkg, uri)||'';
+  return '/.lif/npm/'+u.name+u.version+u.path;
+};
+
 let tr_mjs_import = f=>{
-  let tr_import = uri=>{
-    let v, do_log = 0;
-    let u = url_uri_parse(uri);
-    if (u.is_based)
-      return;
-    if (!(u = npm_uri_parse(uri)))
-      return void console.error('invalid npm tr import('+uri+')');
-    if (v = f.npm.pkg.lif?.modmap?.[u.name+u.version]){
-      if (v.startsWith('/'))
-        v = 'lif.app'+v;
-      uri = v+u.path;
-    }
-    if (!(u = npm_uri_parse(uri)))
-      return void console.error('invalid npm tr import('+uri+')');
-    if (!u.version)
-    {
-      u.version = npm_dep_ver_lookup(f.npm.pkg, uri)||'';
-      if (u.version)
-        do_log && console.log('import('+f.npm.base+': '+uri+') -> '+u.version);
-    }
-    return '/.lif/npm/'+u.name+u.version+u.path;
-  };
   let s = '', src = f.js, pos = 0, v;
   for (let r of f.ast_imports){
     s += src.slice(pos, r.start);
     pos = r.start;
-    if (!(v=tr_import(r.module)))
+    if (!(v=npm_dep_lookup(f.npm.pkg, r.module)))
       continue;
     s += json(v);
     pos = r.end;
@@ -662,7 +659,7 @@ async function _kernel_fetch(event){
   let external = u.origin!=self.location.origin;
   let log_mod = url+(ref && ref!=u.origin+'/' ? ' ref '+ref : '');
   let path = u.path;
-  let log = function(){ if (!url.includes('')) return;
+  let log = function(){ if (!url.includes('bip39')) return;
     console.log(url, ...arguments); };
   log.mod = log_mod;
   if (request.method!='GET')
@@ -757,9 +754,7 @@ let do_module_dep = async function({modver, dep}){
     console.error('do_module_dep err:', err);
     return null;
   }
-  let ret = npm_dep_ver_lookup(npm.pkg, dep);
-  console.log('modver '+modver+' dep '+dep+' ret '+ret);
-  return ret;
+  return npm_dep_lookup(npm.pkg, dep);
 };
 
 function sw_init_post(){
