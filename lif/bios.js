@@ -1,5 +1,5 @@
 /*global importScripts*/ // ServiceWorkerGlobalScope
-let lif_version = '0.2.36';
+let lif_version = '0.2.38';
 const ewait = ()=>{
   let _return, _throw;
   let promise = new Promise((resolve, reject)=>{
@@ -83,12 +83,15 @@ let {postmessage_chan, str, OF, path_ext, path_file, path_dir, path_is_dir,
   esleep, eslow} = util;
 let {qw} = str;
 let json = JSON.stringify;
+let clog = console.log.bind(console);
+let cerr = console.error.bind(console);
 
 let npm_cdn = ['https://cdn.jsdelivr.net/npm',
   //'https://unpkg.com',
 ];
 let npm_map = {
-  'lif.app': '/lif.app',
+  'lif.app': {base: '/lif.app'},
+  'next': {base: '/lif', pkg: {exports: {dynamic: 'next_dynamic.js'}}},
 };
 let npm_pkg = {};
 let npm_file = {};
@@ -368,21 +371,21 @@ let tr_mjs_import = f=>{
     let u = url_uri_parse(uri);
     if (u.is_based)
       return;
-    if (!(u = npm_uri_parse(uri))){
-      console.error('invalid npm tr import('+uri+')');
-      return;
-    }
+    if (!(u = npm_uri_parse(uri)))
+      return void console.error('invalid npm tr import('+uri+')');
     if (v = f.npm.pkg.lif?.modmap?.[u.name+u.version]){
       if (v.startsWith('/'))
         v = 'lif.app'+v;
       uri = v+u.path;
     }
-    if (!(u = npm_uri_parse(uri))){
-      console.error('invalid npm tr import('+uri+')');
-      return;
-    }
+    if (!(u = npm_uri_parse(uri)))
+      return void console.error('invalid npm tr import('+uri+')');
     if (!u.version)
+    {
       u.version = npm_dep_ver_lookup(f.npm.pkg, uri)||'';
+      if (u.version)
+        console.log('import('+f.npm.base+': '+uri+') -> '+u.version);
+    }
     return '/.lif/npm/'+u.name+u.version+u.path;
   };
   let s = '', src = f.js, pos = 0, v;
@@ -435,11 +438,17 @@ let content_type_get = destination=>{
 
 let npm_dep_ver_lookup = (pkg, module)=>{
   let get_dep = dep=>{
-    let ver = dep?.[module];
-    if (!ver)
+    let ver, m, op;
+    if (!(ver = dep?.[module]))
       return;
-    if (ver[0]=='^' || ver[0]=='=')
-      ver = ver.slice(1);
+    ver = ver.replaceAll(' ', '');
+    if (!(m = ver.match(/^([^0-9.]*)([0-9.]+)$/)))
+      return void console.log('invalid dep('+module+') version '+ver);
+    [, op, ver] = m;
+    if (op=='>=')
+      return;
+    if (!(op=='^' || op=='=' || op==''))
+      return void console.log('invalid dep('+module+') op '+op);
     return '@'+ver;
   };
   let ver
@@ -575,9 +584,11 @@ async function npm_pkg_load(log, modver){
   // load package.json to locate module's index.js
   try {
     let map = npm_map[npm.modver];
-    npm.pkg_base = map||npm_cdn+'/'+npm.modver;
+    npm.base = map ? map.base : npm_cdn+'/'+npm.modver;
+    if (npm.pkg = map?.pkg)
+      return npm.wait.return(npm);
     let u = npm_uri_parse(npm.modver);
-    let url = npm.pkg_base+'/package.json';
+    let url = npm.base+'/package.json';
     let response = await fetch(url);
     if (response.status!=200)
       throw Error('module('+log.mod+') failed fetch '+url);
@@ -587,7 +598,7 @@ async function npm_pkg_load(log, modver){
     if (!(npm.version = pkg.version))
       throw Error('invalid package.json '+url);
     if (!u.version && !map)
-      npm.redirect = u.name+'@'+npm.version;
+      npm.redirect = '/.lif/npm/'+u.name+'@'+npm.version+u.path;
     return npm.wait.return(npm);
   } catch(err){
     throw npm.wait.throw(err);
@@ -606,7 +617,7 @@ async function npm_file_load(log, uri, test_alt){
   }
   let {nfile, type, redirect, alt} = npm.file_lookup(uri);
   file.nfile = nfile;
-  file.url = npm.pkg_base+'/'+nfile;
+  file.url = npm.base+'/'+nfile;
   file.type_lookup = type;
   file.redirect = redirect;
   file.alt = alt;
@@ -649,7 +660,7 @@ async function _bios_fetch(event){
   let external = u.origin!=self.location.origin;
   let log_mod = url+(ref && ref!=u.origin+'/' ? ' ref '+ref : '');
   let path = u.path;
-  let log = function(){ if (!url.includes(' none ')) return;
+  let log = function(){ if (!url.includes('inherits')) return;
     console.log(url, ...arguments); };
   log.mod = log_mod;
   if (request.method!='GET')
@@ -737,7 +748,9 @@ let do_module_dep = async function({modver, dep}){
   } catch(err){
     return null;
   }
-  return npm_dep_ver_lookup(npm.pkg, dep);
+  let ret = npm_dep_ver_lookup(npm.pkg, dep);
+  console.log('modver '+modver+' dep '+dep+' ret '+ret);
+  return ret;
 };
 
 function sw_init_post(){

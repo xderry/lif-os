@@ -1,5 +1,5 @@
 let lif = window.lif = {};
-let lif_version = '0.2.36';
+let lif_version = '0.2.37';
 import util from './util.js';
 let {ewait, esleep, eslow, postmessage_chan, path_file,
   url_uri_parse, npm_uri_parse, npm_modver, _debugger} = util;
