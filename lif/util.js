@@ -1,4 +1,4 @@
-let util_version = '0.2.25';
+let util_version = '0.2.40';
 let exports = {};
 exports.version = util_version;
 
@@ -23,7 +23,7 @@ const esleep = ms=>{
 exports.esleep = esleep;
 
 const eslow = (ms, arg)=>{
-  let active = false;
+  let active = true;
   let done, timeout, at_end;
   let p = (async()=>{
     await esleep(ms);

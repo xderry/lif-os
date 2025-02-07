@@ -1,5 +1,6 @@
-/*global importScripts*/ // ServiceWorkerGlobalScope
+// LIF BIOS (Basic Input Output System)
 let lif_version = '0.2.38';
+
 const ewait = ()=>{
   let _return, _throw;
   let promise = new Promise((resolve, reject)=>{
@@ -367,7 +368,7 @@ let str_splice = (s, at, len, add)=>s.slice(0, at)+add+s.slice(at+len);
 
 let tr_mjs_import = f=>{
   let tr_import = uri=>{
-    let v;
+    let v, do_log = 0;
     let u = url_uri_parse(uri);
     if (u.is_based)
       return;
@@ -384,7 +385,7 @@ let tr_mjs_import = f=>{
     {
       u.version = npm_dep_ver_lookup(f.npm.pkg, uri)||'';
       if (u.version)
-        console.log('import('+f.npm.base+': '+uri+') -> '+u.version);
+        do_log && console.log('import('+f.npm.base+': '+uri+') -> '+u.version);
     }
     return '/.lif/npm/'+u.name+u.version+u.path;
   };
@@ -544,6 +545,7 @@ let npm_file_lookup = (pkg, file)=>{
       return v;
     if (file=='.'){
       return check_val([], pkg.module, 'mjs') ||
+        check_val([], pkg.browser, 'cjs') ||
         check_val([], pkg.main, 'cjs') ||
         check_val([], 'index.js', 'cjs');
     }
@@ -741,11 +743,18 @@ async function bios_fetch(event){
 let do_module_dep = async function({modver, dep}){
   let npm;
   modver ||= 'lif.app';
+  let slow;
   try {
+    slow = eslow(5000, ['do_module_dep', modver, dep]);
     npm = await npm_pkg_load(()=>{}, modver);
+    slow.end();
+    slow = eslow(5000, ['npm_pkg_load', modver, dep]);
     if (npm.redirect)
       npm = await npm_pkg_load(()=>{}, npm.redirect);
+    slow.end();
   } catch(err){
+    slow.end();
+    console.error('do_module_dep err:', err);
     return null;
   }
   let ret = npm_dep_ver_lookup(npm.pkg, dep);

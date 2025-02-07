@@ -1,5 +1,7 @@
+// LIF Kernel: Boot the application
 let lif = window.lif = {};
 let lif_version = '0.2.37';
+
 import util from './util.js';
 let {ewait, esleep, eslow, postmessage_chan, path_file,
   url_uri_parse, npm_uri_parse, npm_modver, _debugger} = util;
@@ -123,10 +125,12 @@ async function require_single(mod_self, module_id){
     return await m.wait;
   m = modules[module_id] = {module_id, deps: [], wait: ewait(),
     loaded: false, module: {exports: {}}};
-  let url = await module_get_modver(mod_self, module_id);
   let slow;
+  slow = eslow(5000, ['require_single modver('+module_id+')']);
+  let url = await module_get_modver(mod_self, module_id);
+  slow.end();
   try {
-    slow = eslow(5000, ['import('+module_id+')', url]);
+    slow = eslow(5000, ['require_single import('+module_id+')', url]);
     m.mod = await import(url);
     slow.end();
   } catch(err){
