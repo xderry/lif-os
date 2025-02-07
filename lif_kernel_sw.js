@@ -1,0 +1,1 @@
+importScripts('/lif/kernel.js');

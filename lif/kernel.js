@@ -13,7 +13,7 @@ const ewait = ()=>{
   return promise;
 };
 
-let lif_bios = {
+let lif_kernel = {
   on_message: null,
   on_fetch: null,
   wait_activate: ewait(),
@@ -25,18 +25,18 @@ function sw_init_pre(){
   // this is needed to activate the worker immediately without reload
   // @see https://developers.google.com/web/fundamentals/primers/service-workers/lifecycle#clientsclaim
   self.addEventListener('activate', event=>event.waitUntil((async()=>{
-    await lif_bios.wait_activate;
+    await lif_kernel.wait_activate;
     await self.clients.claim();
   })()));
   self.addEventListener("message", event=>{
-    if (!lif_bios.on_message)
+    if (!lif_kernel.on_message)
       console.error('sw message event before inited', event);
-    lif_bios.on_message(event);
+    lif_kernel.on_message(event);
   });
   self.addEventListener('fetch', event=>{
-    if (!lif_bios.on_fetch)
+    if (!lif_kernel.on_fetch)
       console.error('sw fetch('+event.request.url+') event before inited');
-    lif_bios.on_fetch(event);
+    lif_kernel.on_fetch(event);
   });
 }
 sw_init_pre();
@@ -284,16 +284,16 @@ const file_tr_amd = f=>{
   });
   _exports += `export default mod.exports;\n`;
   return f.tr_amd = `
-    let lif_kernel = window.lif.kernel;
+    let lif_boot = window.lif.boot;
     let define = function(id, deps, factory){
-      return lif_kernel.define_amd(${uri_s}, arguments); };
+      return lif_boot.define_amd(${uri_s}, arguments); };
     define.amd = {};
     let require = function(deps, cb){
-      return lif_kernel.require_cjs_amd(${uri_s}, arguments); };
+      return lif_boot.require_cjs_amd(${uri_s}, arguments); };
     (()=>{
     ${f.js}
     })();
-    let mod = await lif_kernel.module_get(${uri_s});
+    let mod = await lif_boot.module_get(${uri_s});
     ${_exports}
   `;
 };
@@ -347,14 +347,14 @@ const file_tr_cjs = f=>{
       pre += 'await require_async('+json(r.module)+');\n';
   }
   return f.tr_cjs = `
-    let lif_kernel = window.lif.kernel;
+    let lif_boot = window.lif.boot;
     let module = {exports: {}};
     let exports = module.exports;
-    let process = lif_kernel.process;
-    let require = module=>lif_kernel.require_cjs(${uri_s}, module);
-    let require_async = async(module)=>await lif_kernel.require_single(${uri_s}, module);
+    let process = lif_boot.process;
+    let require = module=>lif_boot.require_cjs(${uri_s}, module);
+    let require_async = async(module)=>await lif_boot.require_single(${uri_s}, module);
     let define = function(id, deps, factory){
-      return lif_kernel.define_amd(${uri_s}, arguments, module); };
+      return lif_boot.define_amd(${uri_s}, arguments, module); };
     define.amd = {};
     ${pre}
     await (async()=>{
@@ -414,8 +414,8 @@ const file_tr_mjs = f=>{
   let uri_s = json(f.uri);
   let tr = tr_mjs_import(f);
   return f.tr_mjs = `
-    let lif_kernel = window.lif.kernel;
-    let import_lif = function(){ return lif_kernel._import(${uri_s}, arguments); };
+    let lif_boot = window.lif.boot;
+    let import_lif = function(){ return lif_boot._import(${uri_s}, arguments); };
     ${tr}
   `;
 };
@@ -655,7 +655,7 @@ async function npm_file_load(log, uri, test_alt){
 }
  
 let kern_chan;
-async function _bios_fetch(event){
+async function _kernel_fetch(event){
   let {request, request: {url}} = event;
   let u = url_parse(url);
   let ref = request.headers.get('referer');
@@ -726,15 +726,15 @@ async function _bios_fetch(event){
   return await fetch(request);
 }
 
-async function bios_fetch(event){
+async function kernel_fetch(event){
   let slow;
   try {
-    slow = eslow(5000, ['_bios_fetch', event.request.url]);
-    let res = await _bios_fetch(event);
+    slow = eslow(5000, ['_kernel_fetch', event.request.url]);
+    let res = await _kernel_fetch(event);
     slow.end();
     return res;
   } catch (err){
-    console.error('bios_fetch err', err);
+    console.error('kernel_fetch err', err);
     slow.end();
     return new Response(''+err, {status: 500, statusText: ''+err});
   }
@@ -766,20 +766,20 @@ function sw_init_post(){
   kern_chan = new util.postmessage_chan();
   kern_chan.add_server_cmd('version', arg=>({version: lif_version}));
   kern_chan.add_server_cmd('module_dep', ({arg})=>do_module_dep(arg));
-  lif_bios.on_message = event=>{
+  lif_kernel.on_message = event=>{
     if (kern_chan.listen(event))
       return;
   };
-  lif_bios.on_fetch = event=>{
+  lif_kernel.on_fetch = event=>{
     try {
-      event.respondWith(bios_fetch(event));
+      event.respondWith(kernel_fetch(event));
     } catch (err){
-      console.error("lif bios sw NetworkError: "+err);
+      console.error("lif kernel sw NetworkError: "+err);
     }
   };
-  lif_bios.wait_activate.return();
+  lif_kernel.wait_activate.return();
 }
 sw_init_post();
-console.log('lif bios sw '+lif_bios.version+' util '+util.version);
-} catch(err){console.error('lif bios failed sw init', err);}})();
+console.log('lif kernel sw '+lif_kernel.version+' util '+util.version);
+} catch(err){console.error('lif kernel failed sw init', err);}})();
 

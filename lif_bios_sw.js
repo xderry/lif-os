@@ -1,1 +1,0 @@
-importScripts('/lif/bios.js');

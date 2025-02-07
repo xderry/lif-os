@@ -8,7 +8,7 @@ let {ewait, esleep, eslow, postmessage_chan, path_file,
 
 let modules = {};
 let lb;
-let bios_chan;
+let kernel_chan;
 
 let process =  {env: {}};
 function define(){ return define_amd(arguments[0], arguments); }
@@ -115,7 +115,7 @@ async function module_get_modver(mod_self, module_id, do_log){
   let dep = pkg[_uri.name] ||= {};
   do_log && console.log('module_get: dep', dep, 'modver_self', modver_self);
   if (!dep.dep){
-    let ver = await bios_chan.cmd('module_dep', {modver: modver_self,
+    let ver = await kernel_chan.cmd('module_dep', {modver: modver_self,
       dep: _uri.name});
     do_log && console.log('module_get: ver', ver);
     dep.dep = _uri.name+(ver||'');
@@ -173,7 +173,7 @@ async function _import(mod_self, [url, opt]){
     throw err;
   }
 }
-lif.kernel = {
+lif.boot = {
   process,
   define,
   require,
@@ -187,7 +187,7 @@ lif.kernel = {
   _import,
   version: lif_version,
 };
-lb = lif.kernel;
+lb = lif.boot;
 window.define = define;
 window.require = require;
 window.process = process;
@@ -215,7 +215,7 @@ let do_import = async({url, opt})=>{
 };
 let lif_app_boot = async()=>{
   let url = window.lif_boot_url || 'lif.app/pages/index.tsx';
-  console.log('kernel: boot '+url);
+  console.log('boot: boot '+url);
   try {
     return await _import('lif.app', [url]);
   } catch (err){
@@ -223,27 +223,27 @@ let lif_app_boot = async()=>{
     throw err;
   }
 };
-let lif_kernel_boot = async()=>{
+let lif_boot_boot = async()=>{
   let wait = ewait();
   try {
-    const registration = await navigator.serviceWorker.register('/lif_bios_sw.js');
+    const registration = await navigator.serviceWorker.register('/lif_kernel_sw.js');
     await navigator.serviceWorker.ready;
-    const boot_bios = async()=>{
-      bios_chan = new postmessage_chan();
-      bios_chan.connect(navigator.serviceWorker.controller);
-      bios_chan.add_server_cmd('version', arg=>({version: lif_version}));
-      bios_chan.add_server_cmd('import', async({arg})=>await do_import(arg));
-      console.log('lif kernel version: '+lif_version+' util '+util.version);
-      console.log('lif bios sw version: '+(await bios_chan.cmd('version')).version);
+    const boot_kernel = async()=>{
+      kernel_chan = new postmessage_chan();
+      kernel_chan.connect(navigator.serviceWorker.controller);
+      kernel_chan.add_server_cmd('version', arg=>({version: lif_version}));
+      kernel_chan.add_server_cmd('import', async({arg})=>await do_import(arg));
+      console.log('lif boot version: '+lif_version+' util '+util.version);
+      console.log('lif kernel sw version: '+(await kernel_chan.cmd('version')).version);
       wait.return();
     };
     // this boots the React app if the SW has been installed before or
     // immediately after registration
     // https://developers.google.com/web/fundamentals/primers/service-workers/lifecycle#clientsclaim
     if (navigator.serviceWorker.controller)
-      await boot_bios();
+      await boot_kernel();
     else
-      navigator.serviceWorker.addEventListener('controllerchange', boot_bios);
+      navigator.serviceWorker.addEventListener('controllerchange', boot_kernel);
     return wait;
   } catch (err){
     console.error('ServiceWorker registration failed', err, err.stack);
@@ -251,6 +251,6 @@ let lif_kernel_boot = async()=>{
   }
   return await wait;
 };
-await lif_kernel_boot();
+await lif_boot_boot();
 await lif_app_boot();
-console.log('kernel: boot complete');
+console.log('boot: boot complete');
