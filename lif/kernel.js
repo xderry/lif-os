@@ -41,6 +41,7 @@ function sw_init_pre(){
 }
 sw_init_pre();
 
+let fetch_opt = url=>(url[0]=='/' ? {headers: {'Cache-Control': 'no-cache'}} : {});
 (async()=>{try {
 // service worker import() implementation
 let import_modules = {};
@@ -50,7 +51,7 @@ let import_module = async(url)=>{
     return await mod.wait;
   mod = import_modules[url] = {url, wait: ewait()};
   try {
-    let response = await fetch(url);
+    let response = await fetch(url, fetch_opt(url));
     if (response.status!=200)
       throw Error('sw import_module('+url+') failed fetch');
     let body = await response.text();
@@ -587,7 +588,7 @@ async function npm_pkg_load(log, modver){
       return npm.wait.return(npm);
     let u = npm_uri_parse(npm.modver);
     let url = npm.base+'/package.json';
-    let response = await fetch(url);
+    let response = await fetch(url, fetch_opt(url));
     if (response.status!=200)
       throw Error('module('+log.mod+') failed fetch '+url);
     let pkg = npm.pkg = await response.json();
@@ -622,7 +623,7 @@ async function npm_file_load(log, uri, test_alt){
   if (file.redirect)
     return file.wait.return(file);
   // fetch the file
-  let response = await fetch(file.url);
+  let response = await fetch(file.url, fetch_opt(file.url));
   if (response.status!=200){
     if (test_alt)
       throw file.wait.throw(Error('fetch failed '+file.url));
