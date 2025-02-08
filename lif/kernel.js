@@ -98,56 +98,6 @@ let npm_map = {
 let npm_pkg = {};
 let npm_file = {};
 
-// see index.html for coresponding import maps
-let npm_static = {
-  // browserify dummy nodes:
-  'object.assign': {body:
-    `export default function(){ return Object.assign; }`},
-  // node.js core modules - npm browserify
-  'assert': {node: 'assert/assert.js'},
-  'buffer': {node: 'buffer/index.js'},
-  'child_process': {node: 'empty'},
-  'cluster':{node: 'empty'},
-  'console': {node: 'console-browserify/index.js'},
-  'constants': {node: 'constants-browserify/constants.json'},
-  'crypto': {node: 'crypto-browserify/index.js'},
-  'dgram': {node: 'empty'},
-  'dns': {node: 'empty'},
-  'domain': {node: 'domain-browser/source/index.js'},
-  'events': {node: 'events/events.js'},
-  'fs': {node: 'empty'},
-  'http': {node: 'stream-http/index.js'},
-  'https': {node: 'https-browserify/index.js'},
-  'http2': {node: 'empty'},
-  'inspector': {node: 'empty'},
-  'module': {node: 'empty'},
-  'net': {node: 'empty'},
-  'os': {node: 'os-browserify/browser.js'},
-  'path': {node: 'path-browserify/index.js'},
-  'perf_hooks': {node: 'empty'},
-  'punycode': {node: 'punycode/punycode.js'},
-  'querystring': {node: 'querystring-es3/index.js'},
-  'readline': {node: 'empty'},
-  'repl': {node: 'empty'},
-  'stream': {node: 'stream-browserify/index.js'},
-  '_stream_duplex': {node: 'readable-stream/duplex.js'},
-  '_stream_passthrough': {node: 'readable-stream/passthrough.js'},
-  '_stream_readable': {node: 'readable-stream/readable.js'},
-  '_stream_transform': {node: 'readable-stream/transform.js'},
-  '_stream_writable': {node: 'readable-stream/writable.js'},
-  'safe-buffer': {node: 'safe-buffer/index.js'}, // for string_decoder
-  'string_decoder': {node: 'string_decoder/lib/string_decoder.js'},
-  'sys': {node: 'util/util.js'},
-  'timers': {node: 'timers-browserify/main.js'},
-  'tls': {node: 'empty'},
-  'tty': {node: 'tty-browserify/index.js'},
-  'url': {node: 'url/url.js'},
-  'util': {node: 'util/util.js'},
-  'vm': {node: 'vm-browserify/index.js'},
-  'zlib': {node: 'browserify-zlib/lib/index.js'},
-  '_process': {node: 'process/browser.js'},
-};
-
 let parser = Babel.packages.parser;
 let traverse = Babel.packages.traverse.default;
 
@@ -417,16 +367,10 @@ const file_tr_mjs = f=>{
   `;
 };
 
-let headers = {
-  js: new Headers({'content-type': 'application/javascript'}),
-  json: new Headers({'content-type': 'application/json'}),
-  plain: new Headers({'content-type': 'plain/text'}),
-};
-
 let content_type_get = destination=>{
   // audio, audioworklet, document, embed, fencedframe, font, frame, iframe,
   // image, json, manifest, object, paintworklet, report, script,
-  // sharedworker, style, track, video, worker or xslt
+  // sharedworker, style, track, video, worker, xslt
   let types = {
     script: 'application/javascript',
     json: 'application/json',
@@ -458,8 +402,8 @@ let npm_dep_ver_lookup = (pkg, module)=>{
     return ver;
 };
 
-// TODO support longer matches first /a/b/c matches before /a/b
 let file_match = (file, match)=>{
+  // TODO support longer matches first /a/b/c matches before /a/b
   let v, f = file, m = match;
   while (v=str.prefix(f, './'))
     f = v.rest;
@@ -650,6 +594,24 @@ async function npm_file_load(log, uri, test_alt){
   do_log && console.log('fetch OK '+file.url);
   return file.wait.return(file);
 }
+
+let new_response = ({body, type, name})=>{
+  let ctype_map = { // content-type
+    js: 'application/javascript',
+    json: 'application/json',
+    text: 'plain/text',
+  };
+  let opt = {}, v, ctype, h = {};
+  if (type && (v=ctype_map[type]))
+    ctype ||= v;
+  if (name && (v=path_ext(name)))
+    ctype ||= v.slice(1);
+  ctype ||= ctype_map.js;
+  h['content-type'] = ctype;
+  opt.headers = new Headers(h);
+  return new Response(body, opt);
+};
+
  
 let kern_chan;
 async function _kernel_fetch(event){
@@ -691,8 +653,7 @@ async function _kernel_fetch(event){
     else
       throw Error('invalid type '+f.type);
     log(`module ${uri} served ${f.uri}`);
-    return new Response(js, {
-      headers: headers[f.type=='json' ? 'json' : 'js']});
+    return new_response({body: js, type: f.type});
   }
   if (v=str.prefix(path, '/.lif/npm.cjs/')){
     log('npm.cjs');
@@ -700,25 +661,23 @@ async function _kernel_fetch(event){
     let f = await npm_file_load(log, uri);
     let tr = file_tr_cjs(f);
     log(`module ${uri} served ${f.url}`);
-    return new Response(tr, {headers: headers.js});
+    return new_response({body: tr});
   }
   if (u.ext=='.css'){
     let response = await fetch(path);
     if (response.status!=200)
       throw Error('failed fetch '+path);
     let body = await response.text();
-    return new Response(`
-        //TODO We don't track instances, so 2x imports will result
-        // in 2x style tags
-        const head = document.getElementsByTagName('head')[0];
-        const style = document.createElement('style');
-        style.setAttribute('type', 'text/css');
-        style.appendChild(document.createTextNode(${json(body)}));
-        head.appendChild(style);
-        export default null; //TODO here we can export CSS module instead
-      `,
-      {headers: headers.js}
-    );
+    return new_response({body: `
+      //TODO We don't track instances, so 2x imports will result
+      // in 2x style tags
+      const head = document.getElementsByTagName('head')[0];
+      const style = document.createElement('style');
+      style.setAttribute('type', 'text/css');
+      style.appendChild(document.createTextNode(${json(body)}));
+      head.appendChild(style);
+      export default null; //TODO here we can export CSS module instead
+    `});
   }
   return await fetch(request);
 }
