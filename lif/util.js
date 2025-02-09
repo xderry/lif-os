@@ -79,6 +79,13 @@ str.prefix = (s, prefix)=>{
     return {prefix: prefix, rest: s.substr(prefix.length)};
 };
 str.splice = (s, at, len, add)=>s.slice(0, at)+add+s.slice(at+len);
+str.diff_pos = (s1, s2)=>{
+  if (s1==s2)
+    return;
+  let i;
+  for (i=0; i<s1.length && s1[i]==s2[i]; i++);
+  return i;
+};
 
 // assert.js
 let assert_eq = (exp, res)=>{
@@ -234,30 +241,32 @@ function Scroll(s){
   this.diff = [];
   this.len = this.s.length;
 }
-Scroll.prototype.get_diff_pos = function(at, len){
-  if (at+len>this.len)
+Scroll.prototype.get_diff_pos = function(start, end){
+  if (start>end)
+    throw Error('diff start>end');
+  if (end>this.len)
     throw Error('diff out of s range');
   let i, d;
   // use binary-search in the future
   for (i=0; d=this.diff[i]; i++){
-    if (at>=d.at+d.len)
+    if (start>=d.end)
       continue;
-    if (at+len<=d.at)
+    if (end<=d.start)
       return i;
     throw Error('diff overlaping');
   }
   return i;
 };
-Scroll.prototype.splice = function(at, len, s){
+Scroll.prototype.splice = function(start, end, s){
   // find the frag pos of src in dst, and update
-  let i = this.get_diff_pos(at, len);
-  this.diff.splice(i, 0, {at, len, s});
+  let i = this.get_diff_pos(start, end);
+  this.diff.splice(i, 0, {start, end, s});
 };
 Scroll.prototype.out = function(){
   let s = '', at = 0, d;
   for (let i=0; d=this.diff[i]; i++){
-    s += this.s.slice(at, d.at)+d.s;
-    at = d.at+d.len;
+    s += this.s.slice(at, d.start)+d.s;
+    at = d.end;
   }
   s += this.s.slice(at, this.len);
   return s;
@@ -267,18 +276,18 @@ exports.Scroll = Scroll;
 function test_Scroll(){
   let t = v=>assert_eq(v, s.out());
   let s = Scroll('0123456789abcdef');
-  s.splice(3, 2, 'ABCD');
+  s.splice(3, 5, 'ABCD');
   t('012ABCD56789abcdef');
-  s.splice(6, 1, 'QW');
+  s.splice(6, 7, 'QW');
   t('012ABCD5QW789abcdef');
-  s.splice(7, 1, '  ');
+  s.splice(7, 8, '  ');
   t('012ABCD5QW  89abcdef');
-  s.splice(6, 0, '-');
-  s.splice(7, 0, '-');
-  s.splice(8, 0, '-');
+  s.splice(6, 6, '-');
+  s.splice(7, 7, '-');
+  s.splice(8, 8, '-');
   t('012ABCD5-QW-  -89abcdef');
 }
-exports.test_Scroll = test_Scroll;
+test_Scroll();
 
 export default exports;
 

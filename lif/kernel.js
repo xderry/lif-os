@@ -82,8 +82,8 @@ let Babel = await import_module('https://unpkg.com/@babel/standalone@7.26.4/babe
 let util = await import_module('/lif/util.js');
 let {postmessage_chan, str, OF, path_ext, path_file, path_dir, path_is_dir,
   url_parse, uri_parse, url_uri_parse, npm_uri_parse, npm_modver,
-  esleep, eslow} = util;
-let {qw} = str;
+  esleep, eslow, Scroll, _debugger, assert_eq} = util;
+let {qw, diff_pos} = str;
 let json = JSON.stringify;
 let clog = console.log.bind(console);
 let cerr = console.error.bind(console);
@@ -94,6 +94,7 @@ let npm_cdn = ['https://cdn.jsdelivr.net/npm',
 let npm_map = {
   'lif.app': {base: '/lif.app'},
   'next': {base: '/lif', pkg: {exports: {dynamic: 'next_dynamic.js'}}},
+  //'lif': {base: '/lif', pkg: {exports: {dynamic: 'next_dynamic.js'}}},
 };
 let npm_pkg = {};
 let npm_file = {};
@@ -147,9 +148,9 @@ let file_ast = f=>{
 
   let parse_ast = ()=>{
     let opt = f.ast_opt = {presets: [], plugins: []};
-    if (f.ast_is_ts)
+    if (0 && f.ast_is_ts)
       opt.plugins.push('typescript');
-    if (f.ast_is_jsx)
+    if (0 && f.ast_is_jsx)
       opt.plugins.push('jsx');
     opt.sourceType = 'module';
     try {
@@ -273,18 +274,13 @@ const file_tr_cjs_shim = async(f)=>{
 };
 
 let tr_cjs_require = f=>{
-  let s = '', src = f.js, pos = 0;
-  for (let r of f.ast_requires){
-    s += src.slice(pos, r.start);
-    if (r.type=='sync' || r.type=='try'){
-      pos = r.start;
-      continue;
-    }
-    s += '(await require_async('+json(r.module)+'))';
-    pos = r.end;
+  let s = Scroll(f.js);
+  for (let d of f.ast_requires){
+    if (!(d.type=='sync' || d.type=='try'))
+      s.splice(d.start, d.end, '(await require_async('+json(d.module)+'))');
   }
-  s += src.slice(pos);
-  return s;
+  let out = s.out();
+  return out;
 };
 
 const file_tr_cjs = f=>{
@@ -325,34 +321,36 @@ let npm_dep_lookup = (pkg, uri)=>{
     console.error('invalid npm uri import('+uri+')');
     return uri;
   }
-  if (v = pkg.lif?.modmap?.[u.name+u.version]){
+  let modver = u.name+u.version;
+  if (0 && (v = npm_map[modver]?.base))
+  {
+    //return uri;
+    console.log('dep', uri, '-> /.lif/npm'+v+u.path);
+    return '/.lif/npm'+v+u.path;
+  }
+  if (v = pkg.lif?.modmap?.[modver]){
     if (v.startsWith('/'))
       v = 'lif.app'+v;
-    uri = v+u.path;
-    u = npm_uri_parse(uri);
-  } else if (!u.version)
-    u.version = npm_dep_ver_lookup(pkg, u.name)||'';
-  return '/.lif/npm/'+u.name+u.version+u.path;
+    return '/.lif/npm/'+v+u.path;
+  }
+  if (!u.version){
+    let version = npm_dep_ver_lookup(pkg, u.name)||'';
+    return '/.lif/npm/'+u.name+version+u.path;
+  }
+  return uri;
 };
 
 let tr_mjs_import = f=>{
-  let s = '', src = f.js, pos = 0, v;
-  for (let r of f.ast_imports){
-    s += src.slice(pos, r.start);
-    pos = r.start;
-    if (!(v=npm_dep_lookup(f.npm.pkg, r.module)))
-      continue;
-    s += json(v);
-    pos = r.end;
+  let s = Scroll(f.js), v;
+  for (let d of f.ast_imports){
+    let do_log = d.module.includes('next/dynamic');
+    if (v=npm_dep_lookup(f.npm.pkg, d.module))
+      s.splice(d.start, d.end, json(v));
+    do_log && console.log('replace', d.module, '->', v);
   }
-  for (let r of f.ast_imports_dyn){
-    s += src.slice(pos, r.start);
-    pos = r.start;
-    s += 'import_lif';
-    pos = r.end;
-  }
-  s += src.slice(pos);
-  return s;
+  for (let d of f.ast_imports_dyn)
+    s.splice(d.start, d.end, 'import_lif');
+  return s.out();
 };
 
 const file_tr_mjs = f=>{
@@ -417,7 +415,7 @@ let file_match = (file, match)=>{
 };
 // parse package.exports
 // https://webpack.js.org/guides/package-exports/
-let npm_file_lookup = (pkg, file)=>{
+let pkg_export_lookup = (pkg, file)=>{
   let check_val = (res, dst, type)=>{
     let v;
     if (typeof dst!='string')
@@ -516,7 +514,7 @@ async function npm_pkg_load(log, modver){
   npm.file_lookup = uri=>{
     let {path} = npm_uri_parse(uri);
     let ofile = path.replace(/^\//, '')||'.';
-    let {file, type, alt} = npm_file_lookup(npm.pkg, ofile);
+    let {file, type, alt} = pkg_export_lookup(npm.pkg, ofile);
     let nfile = file||ofile;
     let redirect;
     if (nfile && nfile!=ofile)
@@ -528,9 +526,13 @@ async function npm_pkg_load(log, modver){
   try {
     let map = npm_map[npm.modver];
     npm.base = map ? map.base : npm_cdn+'/'+npm.modver;
-    if (npm.pkg = map?.pkg)
+    log('map', map);
+    if (npm.pkg = map?.pkg){
+      log('pkg_load: map');
       return npm.wait.return(npm);
+    }
     let u = npm_uri_parse(npm.modver);
+    log('map u', u, 'modver', npm.modver);
     let url = npm.base+'/package.json';
     let response = await fetch(url, fetch_opt(url));
     if (response.status!=200)
@@ -540,8 +542,10 @@ async function npm_pkg_load(log, modver){
       throw Error('empty package.json '+url);
     if (!(npm.version = pkg.version))
       throw Error('invalid package.json '+url);
-    if (!u.version && !map)
+    if (!u.version && !map){
       npm.redirect = '/.lif/npm/'+u.name+'@'+npm.version+u.path;
+      log('npm.redirect', npm.redirect);
+    }
     return npm.wait.return(npm);
   } catch(err){
     throw npm.wait.throw(err);
@@ -556,6 +560,7 @@ async function npm_file_load(log, uri, test_alt){
   npm = file.npm = await npm_pkg_load(log, npm_modver(uri));
   if (npm.redirect){
     let u = npm_uri_parse(uri);
+    log(u, 'npm.redir', npm.redirect);
     return file.wait.return({redirect: npm.redirect+u.path});
   }
   let {nfile, type, redirect, alt} = npm.file_lookup(uri);
@@ -611,7 +616,6 @@ let new_response = ({body, type, name})=>{
   opt.headers = new Headers(h);
   return new Response(body, opt);
 };
-
  
 let kern_chan;
 async function _kernel_fetch(event){
@@ -621,8 +625,10 @@ async function _kernel_fetch(event){
   let external = u.origin!=self.location.origin;
   let log_mod = url+(ref && ref!=u.origin+'/' ? ' ref '+ref : '');
   let path = u.path;
-  let log = function(){ if (!url.includes('bip39')) return;
-    console.log(url, ...arguments); };
+  let log = function(){
+    if (url.includes('/lif/dynamic'))
+      return console.log(url, ...arguments), 1;
+  };
   log.mod = log_mod;
   if (request.method!='GET')
     return fetch(request);
@@ -641,19 +647,18 @@ async function _kernel_fetch(event){
     }
     file_ast(f);
     log('npm', f.type);
-    let js = f.js;
-    if (f.type=='raw' || f.type=='json')
-      js = f.body;
+    let tr = f.js || f.body;
+    if (f.type=='raw' || f.type=='json');
     else if (f.type=='amd')
-      js = file_tr_amd(f);
+      tr = file_tr_amd(f);
     else if (f.type=='cjs' || !f.type)
-      js = await file_tr_cjs_shim(f);
+      tr = await file_tr_cjs_shim(f);
     else if (f.type=='mjs')
-      js = file_tr_mjs(f);
+      tr = file_tr_mjs(f);
     else
       throw Error('invalid type '+f.type);
-    log(`module ${uri} served ${f.uri}`);
-    return new_response({body: js, type: f.type});
+    log(`module ${uri} served ${f.url} url ${url}`);
+    return new_response({body: tr, type: f.type});
   }
   if (v=str.prefix(path, '/.lif/npm.cjs/')){
     log('npm.cjs');
