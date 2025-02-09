@@ -1,6 +1,7 @@
 // LIF bootloader: Boot the kernel and then load the application
 let lif = window.lif = {};
-let lif_version = '0.2.51';
+let lif_version = '0.2.53';
+let D = 0; // Debug
 
 import util from './util.js';
 let {ewait, esleep, eslow, postmessage_chan, path_file,
@@ -192,8 +193,9 @@ let do_import = async({url, opt})=>{
     let exports = await import(url, opt);
     slow.end();
     ret.exports = [];
-    if (typeof exports=='object' && !Array.isArray(exports.default)){
-      for (let i in exports.default)
+    let e = exports.default;
+    if (typeof e=='object' && !Array.isArray(e)){
+      for (let i in e)
         ret.exports.push(i);
     }
     return ret;

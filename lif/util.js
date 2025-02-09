@@ -1,6 +1,7 @@
-let util_version = '0.2.50';
+let util_version = '0.2.53';
 let exports = {};
 exports.version = util_version;
+let D = 0; // Debug
 
 // Promise with return() and throw()
 const ewait = ()=>{
@@ -23,13 +24,12 @@ const esleep = ms=>{
 exports.esleep = esleep;
 
 const eslow = (ms, arg)=>{
-  let active = false;
   let done, timeout, at_end;
   let p = (async()=>{
     await esleep(ms);
     timeout = true;
     if (!done)
-      active && console.error('slow '+ms+' passed', ...arg);
+      D && console.error('slow '+ms+' passed', ...arg);
   })();
   eslow.set.add(p);
   p.now = Date.now();
@@ -37,10 +37,10 @@ const eslow = (ms, arg)=>{
     at_end ||= Date.now();
     eslow.set.delete(p);
     if (timeout && !done)
-      active && console.error('slow completed '+(Date.now()-p.now)+'>'+ms, ...arg);
+      D && console.error('slow completed '+(Date.now()-p.now)+'>'+ms, ...arg);
     done = true;
   };
-  p.print = ()=>active && console.log('slow '+(done?'completed ':'')+ms
+  p.print = ()=>D && console.log('slow '+(done?'completed ':'')+ms
     +' passed '+((at_end||Date.now())-p.now), ...arg);
   return p;
 };

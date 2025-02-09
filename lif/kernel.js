@@ -1,5 +1,6 @@
 // LIF Kernel: Service Worker BIOS (Basic Input Output System)
-let lif_version = '0.2.50';
+let lif_version = '0.2.53';
+let D = 0; // debug
 
 const ewait = ()=>{
   let _return, _throw;
@@ -94,7 +95,7 @@ let npm_cdn = ['https://cdn.jsdelivr.net/npm',
 let npm_map = {
   'lif.app': {base: '/lif.app'},
   'next': {base: '/lif', pkg: {exports: {dynamic: 'next_dynamic.js'}}},
-  //'lif': {base: '/lif', pkg: {exports: {dynamic: 'next_dynamic.js'}}},
+  'lif': {base: '/lif', pkg: {exports: {dynamic: 'next_dynamic.js'}}},
 };
 let npm_pkg = {};
 let npm_file = {};
@@ -322,12 +323,9 @@ let npm_dep_lookup = (pkg, uri)=>{
     return uri;
   }
   let modver = u.name+u.version;
-  if (0 && (v = npm_map[modver]?.base))
-  {
-    //return uri;
-    console.log('dep', uri, '-> /.lif/npm'+v+u.path);
+  let map = npm_map[modver];
+  if ((v=map?.base) && map.pkg)
     return '/.lif/npm'+v+u.path;
-  }
   if (v = pkg.lif?.modmap?.[modver]){
     if (v.startsWith('/'))
       v = 'lif.app'+v;
@@ -343,10 +341,8 @@ let npm_dep_lookup = (pkg, uri)=>{
 let tr_mjs_import = f=>{
   let s = Scroll(f.js), v;
   for (let d of f.ast_imports){
-    let do_log = d.module.includes('next/dynamic');
     if (v=npm_dep_lookup(f.npm.pkg, d.module))
       s.splice(d.start, d.end, json(v));
-    do_log && console.log('replace', d.module, '->', v);
   }
   for (let d of f.ast_imports_dyn)
     s.splice(d.start, d.end, 'import_lif');
@@ -387,7 +383,7 @@ let npm_dep_ver_lookup = (pkg, module)=>{
     [, op, ver] = m;
     if (op=='>=')
       return;
-    if (!(op=='^' || op=='=' || op==''))
+    if (!(op=='^' || op=='=' || op=='' || op=='~'))
       return void console.log('invalid dep('+module+') op '+op);
     return '@'+ver;
   };
@@ -524,12 +520,15 @@ async function npm_pkg_load(log, modver){
   };
   // load package.json to locate module's index.js
   try {
+    let pkg, v;
     let map = npm_map[npm.modver];
-    npm.base = map ? map.base : npm_cdn+'/'+npm.modver;
-    log('map', map);
-    if (npm.pkg = map?.pkg){
-      log('pkg_load: map');
-      return npm.wait.return(npm);
+    npm.base = map?.base || npm_cdn+'/'+npm.modver;
+    if (map){
+      log('map', map, 'modver', modver);
+      npm.pkg = map.pkg;
+      npm.base = map.base;
+      if (map.pkg)
+        return npm.wait.return(npm);
     }
     let u = npm_uri_parse(npm.modver);
     log('map u', u, 'modver', npm.modver);
@@ -537,7 +536,7 @@ async function npm_pkg_load(log, modver){
     let response = await fetch(url, fetch_opt(url));
     if (response.status!=200)
       throw Error('module('+log.mod+') failed fetch '+url);
-    let pkg = npm.pkg = await response.json();
+    pkg = npm.pkg = await response.json();
     if (!pkg)
       throw Error('empty package.json '+url);
     if (!(npm.version = pkg.version))
@@ -553,7 +552,7 @@ async function npm_pkg_load(log, modver){
 }
 
 async function npm_file_load(log, uri, test_alt){
-  let file, do_log = false, npm;
+  let file, D = 0, npm;
   if (file = npm_file[uri])
     return await file.wait;
   file = npm_file[uri] = {uri, wait: ewait(), log};
@@ -586,7 +585,7 @@ async function npm_file_load(log, uri, test_alt){
       }
       if (afile){
         file.redirect = '/.lif/npm/'+afile.uri;
-        do_log && console.log('fetch OK redirect '+file.url);
+        D && console.log('fetch OK redirect '+file.url);
         return file.wait.return(file);
       }
     }
@@ -596,7 +595,7 @@ async function npm_file_load(log, uri, test_alt){
     throw file.wait.throw(Error(e));
   }
   file.body = await response.text();
-  do_log && console.log('fetch OK '+file.url);
+  D && console.log('fetch OK '+file.url);
   return file.wait.return(file);
 }
 
@@ -626,7 +625,7 @@ async function _kernel_fetch(event){
   let log_mod = url+(ref && ref!=u.origin+'/' ? ' ref '+ref : '');
   let path = u.path;
   let log = function(){
-    if (url.includes('/lif/dynamic'))
+    if (url.includes(' none '))
       return console.log(url, ...arguments), 1;
   };
   log.mod = log_mod;

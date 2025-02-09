@@ -5,7 +5,7 @@ import type OverlayFS from "browserfs/dist/node/backend/OverlayFS";
 import type IndexedDBFileSystem from "browserfs/dist/node/backend/IndexedDB";
 import { useFileSystem } from "contexts/fileSystem";
 import { type RootFileSystem } from "contexts/fileSystem/useAsyncFs";
-import SEARCH_EXTENSIONS from "scripts/searchExtensions.json";
+import SEARCH_EXTENSIONS from "scripts/searchExtensions.json" with {type: 'json'};
 import {
   DISBALE_AUTO_INPUT_FEATURES,
   HIGH_PRIORITY_REQUEST,

@@ -21,7 +21,8 @@
       "contexts": "/contexts",
       "pages": "/pages",
       "utils": "/utils",
-      "styles": "/styles"
+      "styles": "/styles",
+      "scripts": "/scripts"
     }
   },
   "scripts": {
