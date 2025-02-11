@@ -1,0 +1,14 @@
+{
+  "name": "lif",
+  "version": "0.2.0",
+  "description": "LIF Kernel",
+  "author": {
+    "name": "Jungo",
+    "email": "dasoft@jungo.center",
+    "url": "https://jungo.center"
+  },
+  "license": "JPL",
+  "exports": {
+    "dynamic": "dynamic.tsx"
+  }
+}
