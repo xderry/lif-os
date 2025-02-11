@@ -633,8 +633,10 @@ async function _kernel_fetch(event){
     return fetch(request);
   let v;
   log('Req');
-  if (external)
+  if (external){
+    console.log('external fetch', url);
     return fetch(request);
+  }
   if (path=='/favicon.ico')
     return await fetch('https://raw.githubusercontent.com/DustinBrett/daedalOS/refs/heads/main/public/favicon.ico');
   if (v=str.prefix(path, '/.lif/npm/')){
@@ -667,7 +669,7 @@ async function _kernel_fetch(event){
     log(`module ${uri} served ${f.url}`);
     return new_response({body: tr});
   }
-  if (u.ext=='.css'){
+  if (0 && u.ext=='.css'){
     let response = await fetch(path);
     if (response.status!=200)
       throw Error('failed fetch '+path);
@@ -683,6 +685,7 @@ async function _kernel_fetch(event){
       export default null; //TODO here we can export CSS module instead
     `});
   }
+  console.log('req default', url);
   return await fetch(request);
 }
 

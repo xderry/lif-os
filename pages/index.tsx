@@ -6,6 +6,7 @@ import useGlobalErrorHandler from "hooks/useGlobalErrorHandler";
 import useGlobalKeyboardShortcuts from "hooks/useGlobalKeyboardShortcuts";
 import useIFrameFocuser from "hooks/useIFrameFocuser";
 import useUrlLoader from "hooks/useUrlLoader";
+console.log('start index.tsx');
 
 const Index = (): React.ReactElement => {
   useIFrameFocuser();
