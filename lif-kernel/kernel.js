@@ -80,7 +80,7 @@ let import_module = async(url)=>{
 };
 
 let Babel = await import_module('https://unpkg.com/@babel/standalone@7.26.4/babel.js');
-let util = await import_module('/lif-os/util.js');
+let util = await import_module('/lif-kernel/util.js');
 let {postmessage_chan, str, OF, path_ext, path_file, path_dir, path_is_dir,
   url_parse, uri_parse, url_uri_parse, npm_uri_parse, npm_modver,
   esleep, eslow, Scroll, _debugger, assert_eq} = util;
@@ -94,7 +94,7 @@ let npm_cdn = ['https://cdn.jsdelivr.net/npm',
 ];
 let npm_map = {
   'lif-app': {base: '/lif-app'},
-  'lif-os': {base: '/lif-os'},
+  'lif-kernel': {base: '/lif-kernel'},
 };
 let npm_pkg = {};
 let npm_file = {};
