@@ -156,10 +156,8 @@ async function _import(mod_self, [url, opt]){
   let _url = await module_get_modver(mod_self, url);
   let slow;
   try {
-    console.log(_url, 'import');
     slow = eslow(5000, ['_import('+_url+')']);
     let ret = await import(_url, opt);
-    console.log(_url, 'import end');
     slow.end();
     return ret;
   } catch(err){
