@@ -1,1 +1,1 @@
-importScripts('/lif/kernel.js');
+importScripts('https://unpkg.com/lif-os/kernel.js');

@@ -207,10 +207,10 @@ let do_import = async({url, opt})=>{
   }
 };
 let lif_app_boot = async()=>{
-  let url = window.lif_boot_url || 'lif.app/pages/index.tsx';
+  let url = window.lif_boot_url || 'lif-app/pages/index.tsx';
   console.log('boot: boot '+url);
   try {
-    return await _import('lif.app', [url]);
+    return await _import('lif-app', [url]);
   } catch (err){
     console.error('import('+url+') failed', err);
     throw err;
