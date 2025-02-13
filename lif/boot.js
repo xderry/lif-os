@@ -1,6 +1,6 @@
 // LIF bootloader: Boot the kernel and then load the application
 let lif = window.lif = {};
-let lif_version = '0.2.53';
+let lif_version = '0.2.63';
 let D = 0; // Debug
 
 import util from './util.js';
@@ -156,8 +156,10 @@ async function _import(mod_self, [url, opt]){
   let _url = await module_get_modver(mod_self, url);
   let slow;
   try {
+    console.log(_url, 'import');
     slow = eslow(5000, ['_import('+_url+')']);
     let ret = await import(_url, opt);
+    console.log(_url, 'import end');
     slow.end();
     return ret;
   } catch(err){
@@ -179,6 +181,7 @@ lif.boot = {
   require_cjs_shim,
   _import,
   version: lif_version,
+  util,
 };
 lb = lif.boot;
 window.define = define;

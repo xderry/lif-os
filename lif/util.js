@@ -24,23 +24,24 @@ const esleep = ms=>{
 exports.esleep = esleep;
 
 const eslow = (ms, arg)=>{
-  let done, timeout, at_end;
+  let done, timeout, at_end, enable = 1;
   let p = (async()=>{
     await esleep(ms);
     timeout = true;
     if (!done)
-      D && console.error('slow '+ms+' passed', ...arg);
+      enable && console.error('slow '+ms+' stuck', ...arg, p.err);
   })();
   eslow.set.add(p);
   p.now = Date.now();
+  p.stack = Error('stack'),
   p.end = ()=>{
     at_end ||= Date.now();
     eslow.set.delete(p);
     if (timeout && !done)
-      D && console.error('slow completed '+(Date.now()-p.now)+'>'+ms, ...arg);
+      enable && console.error('slow completed '+(Date.now()-p.now)+'>'+ms, ...arg);
     done = true;
   };
-  p.print = ()=>D && console.log('slow '+(done?'completed ':'')+ms
+  p.print = ()=>console.log('slow '+(done?'completed ':'')+ms
     +' passed '+((at_end||Date.now())-p.now), ...arg);
   return p;
 };
@@ -211,9 +212,9 @@ exports.url_uri_parse = url_uri_parse;
 
 // parse-package-name
 const npm_uri_parse = path=>{
-  const RE_SCOPED = /^(@[^\/]+\/[^@\/]+)(?:(@[^\/]+))?(\/.*)?$/
-  const RE_NON_SCOPED = /^([^@\/]+)(?:(@[^\/]+))?(\/.*)?$/
-  const m = RE_SCOPED.exec(path) || RE_NON_SCOPED.exec(path)
+  const scoped = /^(@[^\/]+\/[^@\/]+)(?:(@[^\/]+))?(\/.*)?$/
+  const non_scoped = /^([^@\/]+)(?:(@[^\/]+))?(\/.*)?$/
+  const m = scoped.exec(path) || non_scoped.exec(path)
   return !m ? null : {name: m[1]||'', version: m[2]||'', path: m[3]||''};
 };
 exports.npm_uri_parse = npm_uri_parse;

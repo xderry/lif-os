@@ -1,5 +1,5 @@
 // LIF Kernel: Service Worker BIOS (Basic Input Output System)
-let lif_version = '0.2.53';
+let lif_version = '0.2.60';
 let D = 0; // debug
 
 const ewait = ()=>{
@@ -94,8 +94,7 @@ let npm_cdn = ['https://cdn.jsdelivr.net/npm',
 ];
 let npm_map = {
   'lif.app': {base: '/lif.app'},
-  'next': {base: '/lif', pkg: {exports: {dynamic: 'next_dynamic.js'}}},
-  'lif': {base: '/lif', pkg: {exports: {dynamic: 'next_dynamic.js'}}},
+  'lif': {base: '/lif'},
 };
 let npm_pkg = {};
 let npm_file = {};
@@ -357,7 +356,11 @@ const file_tr_mjs = f=>{
   return f.tr_mjs = `
     let lif_boot = window.lif.boot;
     let import_lif = function(){ return lif_boot._import(${uri_s}, arguments); };
+    console.log(${uri_s}, 'start');
+    let slow = lif_boot.util.eslow(5000, ['load module', ${uri_s}]);
     ${tr}
+    console.log(${uri_s}, 'end');
+    slow.end();
   `;
 };
 
@@ -625,7 +628,7 @@ async function _kernel_fetch(event){
   let log_mod = url+(ref && ref!=u.origin+'/' ? ' ref '+ref : '');
   let path = u.path;
   let log = function(){
-    if (url.includes(' none '))
+    if (url.match(/Dekstop|Taskbar/))
       return console.log(url, ...arguments), 1;
   };
   log.mod = log_mod;

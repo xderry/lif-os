@@ -1,4 +1,5 @@
-import Menu from "components/system/Menu";
+let Menu = (await import("components/system/Menu")).default;
+//import Menu from "components/system/Menu";
 import contextFactory from "contexts/contextFactory";
 import useMenuContextState from "contexts/menu/useMenuContextState";
 
