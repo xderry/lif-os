@@ -1,5 +1,4 @@
 // author: derry. coder: arik.
-'use strict';
 import events from 'events';
 let assert;
 var _process;
