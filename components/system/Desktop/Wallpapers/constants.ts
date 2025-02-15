@@ -25,11 +25,12 @@ export const WALLPAPER_PATHS: Record<
   VANTA: () => import("components/system/Desktop/Wallpapers/vantaWaves"),
 };
 
+let l = '/.lif/npm/lif-app/';
 export const WALLPAPER_WORKERS: Record<string, (info?: string) => Worker> = {
   COASTAL_LANDSCAPE: (): Worker =>
     new Worker(
       new URL(
-        "components/system/Desktop/Wallpapers/ShaderToy/CoastalLandscape/wallpaper.worker",
+        l+"components/system/Desktop/Wallpapers/ShaderToy/CoastalLandscape/wallpaper.worker",
         import.meta.url
       ),
       { name: "Wallpaper (Coastal Landscape)" }
@@ -37,20 +38,20 @@ export const WALLPAPER_WORKERS: Record<string, (info?: string) => Worker> = {
   HEXELLS: (): Worker =>
     new Worker(
       new URL(
-        "components/system/Desktop/Wallpapers/hexells/wallpaper.worker",
+        l+"components/system/Desktop/Wallpapers/hexells/wallpaper.worker",
         import.meta.url
       ),
       { name: "Wallpaper (Hexells)" }
     ),
   STABLE_DIFFUSION: (): Worker =>
     new Worker(
-      new URL("components/apps/StableDiffusion/sd.worker", import.meta.url),
+      new URL(l+"components/apps/StableDiffusion/sd.worker", import.meta.url),
       { name: "Wallpaper (Stable Diffusion)" }
     ),
   VANTA: (info?: string): Worker =>
     new Worker(
       new URL(
-        "components/system/Desktop/Wallpapers/vantaWaves/wallpaper.worker",
+        l+"components/system/Desktop/Wallpapers/vantaWaves/wallpaper.worker",
         import.meta.url
       ),
       { name: `Wallpaper (Vanta Waves)${info ? ` [${info}]` : ""}` }

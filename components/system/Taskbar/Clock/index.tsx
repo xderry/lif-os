@@ -80,7 +80,7 @@ const Clock: FC<ClockProps> = ({
     () =>
       new Worker(
         new URL(
-          "components/system/Taskbar/Clock/clock.worker",
+          "/.lif/npm/lif-app/components/system/Taskbar/Clock/clock.worker",
           import.meta.url
         ),
         { name: `Clock (${ClockSourceMap[clockSource]})` }
