@@ -3,9 +3,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import MenuItemEntry from "components/system/Menu/MenuItemEntry";
 import StyledMenu from "components/system/Menu/StyledMenu";
 import menuTransition from "components/system/Menu/menuTransition";
-//let {useMenu} = await import("contexts/menu/index");
 //import {useMenu} from "contexts/menu/index";
-let useMenu = ()=>{}; // XXX derry
+let useMenu = ()=>{console.error('called useMenu before init')}; // XXX derry
+export function set_useMenu(Menu){ useMenu = Menu; };
 import { type MenuState } from "contexts/menu/useMenuContextState";
 import {
   FOCUSABLE_ELEMENT,
