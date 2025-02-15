@@ -8,6 +8,7 @@ import { ProcessProvider } from "contexts/process";
 import { SessionProvider } from "contexts/session";
 import { ViewportProvider } from "contexts/viewport";
 
+import Idx from "./index.tsx";
 const App = ({ Component, pageProps }: AppProps): React.ReactElement => (
   <ViewportProvider>
     <ProcessProvider>
@@ -17,7 +18,7 @@ const App = ({ Component, pageProps }: AppProps): React.ReactElement => (
             <Metadata />
             <StyledApp>
               <MenuProvider>
-                <Component {...pageProps} />
+                <Idx />
               </MenuProvider>
             </StyledApp>
           </ErrorBoundary>
@@ -27,4 +28,5 @@ const App = ({ Component, pageProps }: AppProps): React.ReactElement => (
   </ViewportProvider>
 );
 
+                //<Component {...pageProps} />
 export default App;
