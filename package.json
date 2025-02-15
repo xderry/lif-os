@@ -22,7 +22,9 @@
       "pages": "/pages",
       "utils": "/utils",
       "styles": "/styles",
-      "scripts": "/scripts"
+      "scripts": "/scripts",
+      "/System": "/public/System",
+      "/Program Files": "/public/Program Files"
     }
   },
   "scripts": {
