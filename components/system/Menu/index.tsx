@@ -5,10 +5,7 @@ import StyledMenu from "components/system/Menu/StyledMenu";
 import menuTransition from "components/system/Menu/menuTransition";
 //let {useMenu} = await import("contexts/menu/index");
 //import {useMenu} from "contexts/menu/index";
-let useMenu;
-(async()=>{
-  ({useMenu} = await import("contexts/menu/index"));
-})();
+let useMenu = ()=>{}; // XXX derry
 import { type MenuState } from "contexts/menu/useMenuContextState";
 import {
   FOCUSABLE_ELEMENT,
