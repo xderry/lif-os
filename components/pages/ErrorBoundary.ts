@@ -32,7 +32,8 @@ export class ErrorBoundary extends Component<
     } = this;
 
     if (hasError && !FallbackRender && !("__nextDevClientId" in window)) {
-      window.location.reload();
+      0 && window.location.reload();
+      debugger;
     }
 
     return hasError ? FallbackRender : children;
