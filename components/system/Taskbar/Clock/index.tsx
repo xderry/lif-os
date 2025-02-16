@@ -83,7 +83,7 @@ const Clock: FC<ClockProps> = ({
           "/.lif/npm/lif-app/components/system/Taskbar/Clock/clock.worker",
           import.meta.url
         ),
-        { name: `Clock (${ClockSourceMap[clockSource]})` }
+        { name: `Clock (${ClockSourceMap[clockSource]})`, type: 'module' }
       ),
     [clockSource]
   );

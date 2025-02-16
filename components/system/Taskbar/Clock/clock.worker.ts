@@ -26,17 +26,17 @@ const textPosition = {
 };
 
 const styleClock = (): void => {
-  offscreenContext.scale(global.devicePixelRatio, global.devicePixelRatio);
+  offscreenContext.scale(globalThis.devicePixelRatio, globalThis.devicePixelRatio);
   offscreenContext.fillStyle = textColor;
   offscreenContext.font = `${fontSize} ${formats.systemFont}`;
   offscreenContext.textAlign = "center";
   offscreenContext.textBaseline = "middle";
 
   textPosition.y =
-    Math.floor(offscreenCanvas.height / global.devicePixelRatio / 2) +
+    Math.floor(offscreenCanvas.height / globalThis.devicePixelRatio / 2) +
     CLOCK_TEXT_HEIGHT_OFFSET;
   textPosition.x = Math.floor(
-    offscreenCanvas.width / global.devicePixelRatio / 2
+    offscreenCanvas.width / globalThis.devicePixelRatio / 2
   );
 };
 
@@ -81,13 +81,13 @@ globalThis.addEventListener(
     }
 
     if (
-      "OffscreenCanvas" in global &&
+      "OffscreenCanvas" in globalThis &&
       (data as OffscreenRenderProps)?.devicePixelRatio
     ) {
       const { canvas, clockSize, devicePixelRatio } =
         data as OffscreenRenderProps;
 
-      global.devicePixelRatio = devicePixelRatio;
+      globalThis.devicePixelRatio = devicePixelRatio;
 
       if (canvas instanceof OffscreenCanvas) {
         offscreenCanvas = canvas;
