@@ -16,14 +16,20 @@ declare global {
 }
 
 let waveEffect: VantaWaves;
-
 globalThis.addEventListener(
   "message",
-  ({ data }: { data: DOMRect | OffscreenRenderProps | string }) => {
+  async({ data }: { data: DOMRect | OffscreenRenderProps | string }) => {
     if (typeof WebGLRenderingContext === "undefined") return;
 
     if (data === "init") {
-      globalThis.importScripts(...libs);
+      console.log('libs', ...libs); // XXX
+      for (let i of libs){
+        console.log('load', i); // XXX
+        await import(i);
+        console.log('loaded', i); // XXX
+      }
+      console.log('global', globalThis); // XXX
+      //globalThis.importScripts(...libs);
     } else if (data instanceof DOMRect) {
       const { width, height } = data;
 
