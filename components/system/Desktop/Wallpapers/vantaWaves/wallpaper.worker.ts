@@ -1,3 +1,4 @@
+// import 'kernel-lif/load.js'; XXX
 import { type OffscreenRenderProps } from "components/system/Desktop/Wallpapers/types";
 import {
   config,
@@ -15,6 +16,8 @@ declare global {
   var VANTA: VantaObject;
 }
 
+import "/System/Vanta.js/three.min.js"; // XXX
+import "/System/Vanta.js/vanta.waves.min.js"; // XXX
 let waveEffect: VantaWaves;
 globalThis.addEventListener(
   "message",
@@ -25,7 +28,7 @@ globalThis.addEventListener(
       console.log('libs', ...libs); // XXX
       for (let i of libs){
         console.log('load', i); // XXX
-        await import(i);
+        //await import(i);
         console.log('loaded', i); // XXX
       }
       console.log('global', globalThis); // XXX
