@@ -1,0 +1,22 @@
+{
+  "name": "lif-os-boot",
+  "version": "0.1.6",
+  "description": "boot loader lif-os",
+  "author": {
+    "name": "Jungo Publishing Labs",
+    "email": "lif@jungo.center",
+    "url": "https://jungo.center"
+  },
+  "license": "JPL",
+  "type": "module",
+  "scripts": {
+    "build": "ln -snf ../../lif-kernel node_modules/lif-kernel"
+  },
+  "lif": {
+  },
+  "dependencies": {
+    "lif-kernel": "",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  }
+}
