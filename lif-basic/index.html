@@ -6,9 +6,12 @@
     <link rel=stylesheet href=style.css>
   </head>
   <body>
-    <div id=root></div>
-    <script>window.lif_boot_url = "lif-app/lif-kernel/app-basic/main.tsx";</script>
+    <script>
+      window.lif_boot_uri = 'lif-basic/main.tsx';
+      window.lif_boot_map = {'lif-basic': '/', 'lif-kernel': '/'};
+    </script>
     <script type=module src=/lif-kernel/boot.js></script>
+    <div id=root></div>
   </body>
 </html>
 
