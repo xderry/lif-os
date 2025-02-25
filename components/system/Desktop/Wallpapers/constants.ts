@@ -25,7 +25,7 @@ export const WALLPAPER_PATHS: Record<
   VANTA: () => import("components/system/Desktop/Wallpapers/vantaWaves"),
 };
 
-let l = '/.lif/npm/lif-app/';
+let l = '/.lif/npm/lif-os/';
 export const WALLPAPER_WORKERS: Record<string, (info?: string) => Worker> = {
   COASTAL_LANDSCAPE: (): Worker =>
     new Worker(
