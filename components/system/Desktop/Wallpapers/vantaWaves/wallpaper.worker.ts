@@ -16,8 +16,8 @@ declare global {
   var VANTA: VantaObject;
 }
 
-import "/System/Vanta.js/three.min.js"; // XXX
-import "/System/Vanta.js/vanta.waves.min.js"; // XXX
+import "/System/Vanta.js/three.min.js"; // static import, dyn not available
+import "/System/Vanta.js/vanta.waves.min.js";
 let waveEffect: VantaWaves;
 globalThis.addEventListener(
   "message",
@@ -25,14 +25,9 @@ globalThis.addEventListener(
     if (typeof WebGLRenderingContext === "undefined") return;
 
     if (data === "init") {
-      console.log('libs', ...libs); // XXX
-      for (let i of libs){
-        console.log('load', i); // XXX
-        //await import(i);
-        console.log('loaded', i); // XXX
-      }
-      console.log('global', globalThis); // XXX
-      //globalThis.importScripts(...libs);
+      // libs: /System/Vanta.js/three.min.js /System/Vanta.js/vanta.waves.min.js
+      for (let i of libs)
+        ; // await import(i); no dynamic import() in web worker
     } else if (data instanceof DOMRect) {
       const { width, height } = data;
 
