@@ -23,13 +23,13 @@
       "utils": "/utils",
       "styles": "/styles",
       "scripts": "/scripts",
-      "/System": "/public/System",
-      "/Program Files": "/public/Program Files",
-      "/Users": "/public/Users",
-      "/screenshot.png": "/public/screenshot.png",
-      "/session.json": "/public/session.json",
-      "/.index": "/public/.index",
-      "/favicon.ico": "/public/favicon.ico"
+      "/System": "/public/",
+      "/Program Files": "/public/",
+      "/Users": "/public/",
+      "/screenshot.png": "/public/",
+      "/session.json": "/public/",
+      "/.index": "/public/",
+      "/favicon.ico": "/public/"
     }
   },
   "scripts": {
