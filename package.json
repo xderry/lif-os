@@ -28,7 +28,8 @@
       "/Users": "/public/Users",
       "/screenshot.png": "/public/screenshot.png",
       "/session.json": "/public/session.json",
-      "/.index": "/public/.index"
+      "/.index": "/public/.index",
+      "/favicon.ico": "/public/favicon.ico"
     }
   },
   "scripts": {
