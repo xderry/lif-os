@@ -1,4 +1,5 @@
-// import 'kernel-lif/load.js'; XXX
+import 'kernel-lif/boot_worker.js';
+console.log("HERE");
 import { type OffscreenRenderProps } from "components/system/Desktop/Wallpapers/types";
 import {
   config,
