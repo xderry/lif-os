@@ -1,5 +1,5 @@
 import lif from 'lif-kernel/boot_worker.js';
-console.log("HERE wallpaper");
+lif.boot_worker();
 import { libs } from "components/system/Desktop/Wallpapers/ShaderToy/CoastalLandscape";
 import { type OffscreenRenderProps } from "components/system/Desktop/Wallpapers/types";
 
@@ -11,16 +11,6 @@ declare global {
   var devicePixelRatio: number;
 }
 /* eslint-enable vars-on-top, no-var */
-let boot_chan;
-function lif_start(){
-  boot_chan = new util.postmessage_chan();
-  boot_chan.add_server_cmd('version', arg=>({version: lif_boot.version}));
-  globalThis.addEventListener("message", event=>{
-    if (boot_chan.listen(event))
-      return;
-  });
-}
-lif.worker_start();
 
 globalThis.addEventListener(
   "message",

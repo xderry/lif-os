@@ -2,7 +2,7 @@
   <body>
     <script type=module>
       import lif from '/lif-kernel/boot.js';
-      await lif.boot.lif_app_boot({app: 'lif-os/lif-os-boot/main.tsx',
+      await lif.boot.boot_app({app: 'lif-os/lif-os-boot/main.tsx',
         map: {'lif-os': '/', 'lif-kernel': '/', 'lif-os-boot': '/'}});
     </script>
     <div id=root></div>
