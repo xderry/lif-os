@@ -10,8 +10,8 @@
   "license": "JPL",
   "type": "module",
   "scripts": {
-    "build": "ln -snf ../../lif-kernel node_modules/lif-kernel"
-  },
+    "start": "node server.js"
+  }
   "lif": {
   },
   "dependencies": {
