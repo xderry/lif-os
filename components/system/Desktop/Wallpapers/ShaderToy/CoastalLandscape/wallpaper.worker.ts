@@ -1,5 +1,5 @@
 import lif from 'lif-kernel/boot_worker.js';
-lif.boot_worker();
+await lif.boot.boot_worker();
 import { libs } from "components/system/Desktop/Wallpapers/ShaderToy/CoastalLandscape";
 import { type OffscreenRenderProps } from "components/system/Desktop/Wallpapers/types";
 
@@ -18,7 +18,6 @@ globalThis.addEventListener(
     if (typeof WebGLRenderingContext === "undefined") return;
 
     if (data === "init") {
-      console.log(...libs);
       globalThis.importScripts(...libs);
     } else if (data instanceof DOMRect) {
       globalThis.demoCanvasRect = data;

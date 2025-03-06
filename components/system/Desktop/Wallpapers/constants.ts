@@ -25,35 +25,21 @@ export const WALLPAPER_PATHS: Record<
   VANTA: () => import("components/system/Desktop/Wallpapers/vantaWaves"),
 };
 
-let l = '/.lif/npm/lif-os/';
 export const WALLPAPER_WORKERS: Record<string, (info?: string) => Worker> = {
   COASTAL_LANDSCAPE: (): Worker =>
-    new Worker(
-      new URL(
-        l+"components/system/Desktop/Wallpapers/ShaderToy/CoastalLandscape/wallpaper.worker",
-        import.meta.url
-      ),
+    new Worker("components/system/Desktop/Wallpapers/ShaderToy/CoastalLandscape/wallpaper.worker",
       { name: "Wallpaper (Coastal Landscape)", type: 'module' }
     ),
   HEXELLS: (): Worker =>
-    new Worker(
-      new URL(
-        l+"components/system/Desktop/Wallpapers/hexells/wallpaper.worker",
-        import.meta.url
-      ),
+    new Worker("components/system/Desktop/Wallpapers/hexells/wallpaper.worker",
       { name: "Wallpaper (Hexells)", type: 'module' }
     ),
   STABLE_DIFFUSION: (): Worker =>
-    new Worker(
-      new URL(l+"components/apps/StableDiffusion/sd.worker", import.meta.url),
+    new Worker("components/apps/StableDiffusion/sd.worker",
       { name: "Wallpaper (Stable Diffusion)" }
     ),
   VANTA: (info?: string): Worker =>
-    new Worker(
-      new URL(
-        l+"components/system/Desktop/Wallpapers/vantaWaves/wallpaper.worker",
-        import.meta.url
-      ),
+    new Worker("components/system/Desktop/Wallpapers/vantaWaves/wallpaper.worker",
       { name: `Wallpaper (Vanta Waves)${info ? ` [${info}]` : ""}`, type: 'module' }
     ),
 };
