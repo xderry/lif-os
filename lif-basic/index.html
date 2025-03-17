@@ -3,14 +3,14 @@
   <head>
     <meta charset=utf-8>
     <title>LIF Basic React App</title>
-    <link rel=stylesheet href=style.css>
+    <link rel=stylesheet href=/style.css>
   </head>
   <body>
-    <script>
-      window.lif_boot_uri = 'lif-basic/main.tsx';
-      window.lif_boot_map = {'lif-basic': '/', 'lif-kernel': '/'};
+    <script type=module>
+      import lif from '/lif-kernel/boot.js';
+      await lif.boot.boot_app({app: 'lif-basic/main.tsx',
+        map: {'lif-basic': '/', 'lif-kernel': '/'}});
     </script>
-    <script type=module src=/lif-kernel/boot.js></script>
     <div id=root></div>
   </body>
 </html>

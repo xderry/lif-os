@@ -1,6 +1,6 @@
 {
   "name": "lif-basic",
-  "version": "0.2.0",
+  "version": "0.2.6",
   "description": "basic shalom world",
   "author": {
     "name": "Jungo Publishing Labs",
@@ -10,16 +10,14 @@
   "license": "JPL",
   "type": "module",
   "scripts": {
-    "build": "ln -snf ../../lif-kernel node_modules/lif-kernel"
+    "serve": "./server -p 3000"
   },
   "lif": {
-  },
-  "scripts": {
-    "serve": "./server -p 3000"
   },
   "dependencies": {
     "lif-kernel": "",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "canvas-confetti": "^1.9.3"
   }
 }
