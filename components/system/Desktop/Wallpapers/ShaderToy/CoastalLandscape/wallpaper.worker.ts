@@ -1,4 +1,4 @@
-import lif from 'lif-kernel/boot_worker.js';
+import lif from 'lif-kernel/boot.js';
 await lif.boot.boot_worker();
 import { libs } from "components/system/Desktop/Wallpapers/ShaderToy/CoastalLandscape";
 import { type OffscreenRenderProps } from "components/system/Desktop/Wallpapers/types";
