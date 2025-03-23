@@ -75,6 +75,15 @@ function do_parse(s){
         imports.push(v = n.source.value);
         console.log('found import('+v+')');
       }
+      let b = path.scope.getBinding('React');
+      console.log('bb', b);
+      let r = b.referencePaths;
+      r.forEach(n=>{
+        let c = n.container;
+        console.log('cc', c);
+        if (c.type=='MemberExpression')
+          console.log('name', c.property.name);
+      });
     },
   });
   console.error("AST", p);
@@ -87,7 +96,8 @@ async function load(){
   //url = 'https://unpkg.com/inherits@2.0.4/inherits.js';
   //url = 'https://esm.sh/react-dom@19/client?dev'; // import
   //url = 'http://localhost:3000/lif.app/public/basic_main.tsx';
-  url = 'https://cdn.jsdelivr.net/npm/stylis@4.3.2/index.js';
+  //url = 'https://cdn.jsdelivr.net/npm/stylis@4.3.2/index.js';
+  url = 'https://unpkg.com/next@15.0.3/dist/shared/lib/head.js';
   let res = await fetch(url);
   let src = await res.text();
   do_parse(src);
