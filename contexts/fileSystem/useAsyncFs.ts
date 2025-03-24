@@ -10,7 +10,7 @@ import {
   ICON_CACHE_EXTENSION,
   SESSION_FILE,
 } from "utils/constants";
-import * as BrowserFS from "public/System/BrowserFS/browserfs.min.js";
+import { BFSRequire, configure } from "public/System/BrowserFS/browserfs.min.js";
 import {
   UNKNOWN_STATE_CODES,
   get9pSize,
@@ -36,7 +36,6 @@ export type AsyncFS = {
   ) => Promise<boolean>;
 };
 
-const { BFSRequire, configure } = BrowserFS as typeof IBrowserFS;
 
 export type EmscriptenFS = {
   DB_NAME: () => string;
