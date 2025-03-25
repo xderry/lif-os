@@ -1,3 +1,5 @@
+import lif from 'lif-kernel/boot.js';
+await lif.boot.boot_worker();
 import { type OffscreenRenderProps } from "components/system/Desktop/Wallpapers/types";
 import {
   type LocaleTimeDate,
