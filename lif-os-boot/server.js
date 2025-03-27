@@ -5,4 +5,5 @@ let map = {
   '/lif-kernel': '../lif-kernel/',
   '/lif-os': '../',
 };
-server({map});
+let root = import.meta.dirname;
+server({map, root});
