@@ -4,4 +4,5 @@ let map = {
   '/lif-basic': './',
   '/lif-kernel': '../lif-kernel/',
 };
-server({map});
+let root = import.meta.dirname;
+server({map, root});
