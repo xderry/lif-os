@@ -97,9 +97,13 @@ async function load(){
   //url = 'https://esm.sh/react-dom@19/client?dev'; // import
   //url = 'http://localhost:3000/lif.app/public/basic_main.tsx';
   //url = 'https://cdn.jsdelivr.net/npm/stylis@4.3.2/index.js';
-  url = 'https://unpkg.com/next@15.0.3/dist/shared/lib/head.js';
-  let res = await fetch(url);
-  let src = await res.text();
+  let src;
+  if (0){
+    url = 'https://unpkg.com/next@15.0.3/dist/shared/lib/head.js';
+    let res = await fetch(url);
+    src = await res.text();
+  }
+  src = localStorage.getItem('ast')||'';
   do_parse(src);
 }
 
@@ -162,7 +166,9 @@ function test_Scroll(){
 }
 const btn = document.querySelector("button");
 btn.addEventListener("click", ()=>{
-  do_parse(cm.g());
+  let src = cm.g();
+  localStorage.setItem('ast', src);
+  do_parse(src);
   test_Scroll();
 });
 
