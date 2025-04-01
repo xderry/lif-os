@@ -25,8 +25,11 @@ globalThis.addEventListener(
 
     if (data === "init") {
       // libs: /System/Vanta.js/three.min.js /System/Vanta.js/vanta.waves.min.js
+      debugger;
       for (let i of libs)
-        ; // await import(i); no dynamic import() in web worker
+        ;//importScripts(i);
+        //await lif.boot._import('/.lif/npm/lif-os/worker', [i, {type: 'script'}]);
+        //; // await import(i); no dynamic import() in web worker
     } else if (data instanceof DOMRect) {
       const { width, height } = data;
 
