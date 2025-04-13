@@ -36,10 +36,10 @@ export const WALLPAPER_WORKERS: Record<string, (info?: string) => Worker> = {
     ),
   STABLE_DIFFUSION: (): Worker =>
     new Worker("components/apps/StableDiffusion/sd.worker",
-      { name: "Wallpaper (Stable Diffusion)" } // XXX derry TODO type: module
+      { name: "Wallpaper (Stable Diffusion)", type: 'module'}
     ),
   VANTA: (info?: string): Worker =>
-    new Worker("components/system/Desktop/Wallpapers/vantaWaves/wallpaper.worker?mjs=1",
+    new Worker("components/system/Desktop/Wallpapers/vantaWaves/wallpaper.worker",
       { name: `Wallpaper (Vanta Waves)${info ? ` [${info}]` : ""}`, type: 'module'}
     ),
 };

@@ -22,7 +22,7 @@ globalThis.addEventListener(
     if (typeof WebGLRenderingContext === "undefined") return;
 
     if (data === "init") {
-      importScripts(...libs);
+      globalThis.importScripts(...libs);
     } else if (data instanceof DOMRect) {
       const { width, height } = data;
 
