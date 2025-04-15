@@ -2,7 +2,5 @@
 import server from '../lif-kernel/server.js';
 let map = {
   '/lif-basic': './',
-  '/lif-kernel': '../lif-kernel/',
 };
-let root = import.meta.dirname;
-server({map, root});
+server({map, root: import.meta.dirname});
