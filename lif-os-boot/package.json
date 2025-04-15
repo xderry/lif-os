@@ -1,6 +1,6 @@
 {
   "name": "lif-os-boot",
-  "version": "0.3.0",
+  "version": "1.0.3",
   "description": "boot loader lif-os",
   "author": {
     "name": "Jungo Publishing Labs",
