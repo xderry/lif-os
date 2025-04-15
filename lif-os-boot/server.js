@@ -2,8 +2,7 @@
 import server from '../lif-kernel/server.js';
 let map = {
   '/lif-os-boot': './',
-  '/lif-kernel': '../lif-kernel/',
   '/lif-os': '../',
+  // '/lif-kernel': '../lif-kernel/', // local development
 };
-let root = import.meta.dirname;
-server({map, root});
+server({map, root: import.meta.dirname});
