@@ -7,10 +7,14 @@
   </head>
   <body>
     <script type=module>
-      //import lif from '/lif-kernel/boot.js';
-      import lif from 'https://unpkg.com/lif-kernel@1.0.1/boot.js';
+      import lif from 'https://unpkg.com/lif-kernel@1.0.2/boot.js';
       await lif.boot.boot_app({app: 'lif-basic/main.tsx',
-        map: {'lif-basic': '/', /*'lif-kernel': '/'*/}});
+        map: {'lif-basic': '/'}});
+
+      // to load lif-kernel locally:
+      //import lif from '/lif-kernel/boot.js';
+      //await lif.boot.boot_app({app: 'lif-basic/main.tsx',
+      //  map: {'lif-basic': '/', 'lif-kernel': '/'}});
     </script>
     <div id=root></div>
   </body>
