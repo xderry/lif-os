@@ -8,14 +8,14 @@
   <body>
     <script type=module>
       // production: lif-kernel from network
-      //import lif from 'https://unpkg.com/lif-kernel@1.0.3/boot.js';
-      //await lif.boot.boot_app({app: 'lif-basic/main.tsx',
-      //  map: {'lif-basic': '/'}});
+      import lif from 'https://unpkg.com/lif-kernel@1.0.4/boot.js';
+      await lif.boot.boot_app({app: 'lif-basic/main.tsx',
+        map: {'lif-basic': '/'}});
 
       // development: lif-kernel loaded locally
-      import lif from '/lif-kernel/boot.js';
-      await lif.boot.boot_app({app: 'lif-basic/main.tsx',
-        map: {'lif-basic': '/', 'lif-kernel': '/'}});
+      //import lif from '/lif-kernel/boot.js';
+      //await lif.boot.boot_app({app: 'lif-basic/main.tsx',
+      //  map: {'lif-basic': '/', 'lif-kernel': '/'}});
     </script>
     <div id=root></div>
   </body>
