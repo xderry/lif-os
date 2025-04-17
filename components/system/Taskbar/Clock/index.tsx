@@ -78,11 +78,7 @@ const Clock: FC<ClockProps> = ({
   const { clockSource } = useSession();
   const clockWorkerInit = useCallback(
     () =>
-      new Worker(
-        //new URL(
-          "components/system/Taskbar/Clock/clock.worker",
-          //import.meta.url
-        //),
+      new Worker("components/system/Taskbar/Clock/clock.worker",
         { name: `Clock (${ClockSourceMap[clockSource]})`, type: 'module' }
       ),
     [clockSource]

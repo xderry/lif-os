@@ -16,7 +16,7 @@ const useWorker = <T>(
           passive: true,
         });
       }
-      worker.current.postMessage("init"); // XXX derry: too early - worker not loaded
+      worker.current.postMessage("init");
     }
 
     return () => {
