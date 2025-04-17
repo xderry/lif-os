@@ -732,3 +732,4 @@ class CA {
         twgl.drawBufferInfo(gl, this.quad);
     }
 }
+globalThis.CA = CA;
