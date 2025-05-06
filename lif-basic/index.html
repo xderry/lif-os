@@ -3,21 +3,26 @@
   <head>
     <meta charset=utf-8>
     <title>LIF Basic React App</title>
-    <link rel=stylesheet href=/style.css>
+    <!--link rel=stylesheet href=/style.css-->
+    <link rel=styleskeet href="/.lif/npm/simple-keyboard@3.8.53/build/css/index.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/simple-keyboard@latest/build/css/index.css">
   </head>
   <body>
     <script type=module>
       // production: lif-kernel from network
-      import lif from 'https://unpkg.com/lif-kernel@1.0.6/boot.js';
-      await lif.boot.boot_app({app: 'lif-basic/main.tsx',
-        map: {'lif-basic': '/'}});
+      //import lif from 'https://unpkg.com/lif-kernel@1.0.6/boot.js';
+      //await lif.boot.boot_app({app: 'lif-basic/main.tsx',
+      //  map: {'lif-basic': '/'}});
 
       // development: lif-kernel loaded locally
-      //import lif from '/lif-kernel/boot.js';
-      //await lif.boot.boot_app({app: 'lif-basic/main.tsx',
-      //  map: {'lif-basic': '/', 'lif-kernel': '/'}});
+      import lif from '/lif-kernel/boot.js';
+      await lif.boot.boot_app({app: 'lif-basic/main.tsx',
+        map: {'lif-basic': '/', 'lif-kernel': '/'}});
     </script>
     <div id=root></div>
+    <div class=simple-keyboard></div>
+    <input class=input />
+    <pre id=msg></pre>
   </body>
 </html>
 
