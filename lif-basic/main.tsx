@@ -2,7 +2,6 @@
 import React from 'react';
 import {createRoot, render} from 'react-dom';
 import App from './app.tsx';
-
 // set favicon
 let link = document.createElement('link');
 link.rel = 'icon';
@@ -13,7 +12,8 @@ const root = createRoot(document.getElementById("root"));
 root.render(<App />);
 let play = 0;
 if (play){
-  let {ev} = await import('./play.js');
+  let {create} = await import('./play.js');
   let m = await import('./fetch_tr.js');
-  m.init_ev(ev);
+  let p = create();
+  m.init_ev(p.ev);
 }
