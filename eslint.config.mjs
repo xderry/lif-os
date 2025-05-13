@@ -46,5 +46,6 @@ export default [...compat.extends("eslint:recommended"), {
     "no-unreachable": 'off',
     "no-useless-escape": 'off',
     "no-empty": 'off',
+    "no-ex-assign": 'off',
   },
 }];
