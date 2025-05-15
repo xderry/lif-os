@@ -2,14 +2,14 @@
   <body>
     <script type=module>
       // production: lif-kernel from network
-      //import lif from 'https://unpkg.com/lif-kernel@1.1.0/boot.js';
-      //await lif.boot.boot_app({app: 'lif-os/lif-os-boot/main.tsx',
-      //  map: {'lif-os': '/', 'lif-os-boot': '/'}});
+      import lif from 'https://unpkg.com/lif-kernel@1.1.0/boot.js';
+      await lif.boot.boot_app({app: 'lif-os/lif-os-boot/main.tsx',
+        map: {'lif-os': '/', 'lif-os-boot': '/'}});
 
       // development: lif-kernel loaded locally
-      import lif from '/lif-kernel/boot.js';
-      await lif.boot.boot_app({app: 'lif-os/lif-os-boot/main.tsx',
-        map: {'lif-os': '/', 'lif-kernel': '/', 'lif-os-boot': '/'}});
+      //import lif from '/lif-kernel/boot.js';
+      //await lif.boot.boot_app({app: 'lif-os/lif-os-boot/main.tsx',
+      //  map: {'lif-os': '/', 'lif-kernel': '/', 'lif-os-boot': '/'}});
     </script>
     <div id=root></div>
   </body>
