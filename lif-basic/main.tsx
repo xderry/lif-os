@@ -7,9 +7,15 @@ let link = document.createElement('link');
 link.rel = 'icon';
 link.href = '/.lif/npm/lif-kernel/favicon.ico';
 document.head.appendChild(link);
+// add stylesheet
+link = document.createElement('link');
+link.rel = 'stylesheet';
+link.href = './style.css';
+document.head.appendChild(link);
 // start app
 const root = createRoot(document.getElementById("root"));
 root.render(<App />);
+// playground
 let play = 0;
 if (play){
   let {create} = await import('./play.js');

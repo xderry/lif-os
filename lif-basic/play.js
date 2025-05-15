@@ -1,5 +1,4 @@
 import Keyboard from 'simple-keyboard@3.8.53';
-import 'simple-keyboard@3.8.53/build/css/index.css' with {type: 'css'};
 
 let play = {};
 function onChange(input){
@@ -17,6 +16,14 @@ addEventListener('keypress', e=>{
 });
 
 export let create = ()=>{
+  // remove existing ./style.css that conflicts
+  let link = document.querySelector("link[href='./style.css']");
+  link?.remove();
+  // add style
+  link = document.createElement('link');
+  link.rel = 'stylesheet';
+  link.href = '/.lif/npm/simple-keyboard@3.8.53/build/css/index.css';
+  document.head.appendChild(link);
   let d = document.createElement('div');
   document.body.appendChild(d);
   d.innerHTML = `
