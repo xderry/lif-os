@@ -1,18 +1,17 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <meta charset=utf-8>
     <title>LIF Basic React App</title>
     <script type=module>
       // production: lif-kernel from network
-      import lif from 'https://unpkg.com/lif-kernel@1.1.3/boot.js';
+      import lif from 'https://unpkg.com/lif-kernel@1.1.4/boot.js';
       await lif.boot.boot_app({app: 'lif-basic/main.tsx',
         map: {'lif-basic': '/'}});
 
       // development: lif-kernel loaded locally
-      //import lif from '/lif-kernel/boot.js';
+      //import lif from './node_modules/lif-kernel/boot.js';
       //await lif.boot.boot_app({app: 'lif-basic/main.tsx',
-      //  map: {'lif-basic': '/', 'lif-kernel': '/'}});
+      //  map: {'lif-basic': '/'}});
     </script>
   </head>
   <body>
