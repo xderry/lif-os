@@ -10,7 +10,7 @@ document.head.appendChild(link);
 // add stylesheet
 link = document.createElement('link');
 link.rel = 'stylesheet';
-link.href = './style.css';
+link.href = '/.lif/npm/lif-basic/style.css';
 document.head.appendChild(link);
 // start app
 const root = createRoot(document.getElementById("root"));
