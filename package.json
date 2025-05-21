@@ -23,7 +23,7 @@
       "utils": "./utils",
       "styles": "./styles",
       "scripts": "./scripts",
-      "browserfs": "2.0.0"
+      "browserfs": "^2.0.0"
     },
     "modmap": {
       "components": "/components",
