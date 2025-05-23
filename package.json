@@ -15,6 +15,7 @@
     "type": "mjs",
     "alt": [".js", ".jsx", ".ts", ".tsx", "/index.js", "/index.jsx", "/index.ts", "/index.tsx"],
     "dependencies": {
+      "browserfs": "^2.0.0",
       "components": "./components",
       "public": "./public",
       "hooks": "./hooks",
@@ -23,24 +24,13 @@
       "utils": "./utils",
       "styles": "./styles",
       "scripts": "./scripts",
-      "browserfs": "^2.0.0"
-    },
-    "modmap": {
-      "components": "/components",
-      "public": "/public",
-      "hooks": "/hooks",
-      "contexts": "/contexts",
-      "pages": "/pages",
-      "utils": "/utils",
-      "styles": "/styles",
-      "scripts": "/scripts",
-      "/System": "/public/",
-      "/Program Files": "/public/",
-      "/Users": "/public/",
-      "/screenshot.png": "/public/",
-      "/session.json": "/public/",
-      "/.index": "/public/",
-      "/favicon.ico": "/public/"
+      "System": "./public/System",
+      "Program Files": "./public/Program Files",
+      "Users": "./public/Users",
+      "screenshot.png": "./public/screenshot.png",
+      "session.json": "./public/session.json",
+      ".index": "./public/.index",
+      "favicon.ico": "./public/favicon.ico"
     }
   },
   "scripts": {
