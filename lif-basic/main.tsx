@@ -5,12 +5,15 @@ import App from './app.tsx';
 // set favicon
 let link = document.createElement('link');
 link.rel = 'icon';
-link.href = '/.lif/npm/lif-kernel/favicon.ico';
+//link.href = '/.lif/npm/lif-kernel/favicon.ico';
+link.href = 'lif-kernel/favicon.ico';
 document.head.appendChild(link);
 // add stylesheet
 link = document.createElement('link');
 link.rel = 'stylesheet';
-link.href = '/.lif/npm/lif-basic/style.css';
+//link.href = '/.lif/npm/lif-basic/style.css';
+//link.href = 'lif-basic/style.css';
+link.href = 'style.css';
 document.head.appendChild(link);
 // start app
 const root = createRoot(document.getElementById("root"));
