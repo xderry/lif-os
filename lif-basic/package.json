@@ -13,6 +13,9 @@
     "serve": "./server -p 3000"
   },
   "lif": {
+    "dependencies": {
+      "style.css": "./style.css"
+    }
   },
   "dependencies": {
     "lif-kernel": "^1.1.6",
