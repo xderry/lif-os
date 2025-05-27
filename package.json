@@ -64,7 +64,7 @@
     "react-rnd/re-resizable": "6.10.1"
   },
   "dependencies": {
-    "lif-kernel": "^1.1.9",
+    "lif-kernel": "^1.1.10",
     "@babel/standalone": "^7.26.2",
     "@mlc-ai/web-llm": "^0.2.76",
     "@monaco-editor/loader": "^1.4.0",
