@@ -3,12 +3,12 @@
   <head>
     <title>LIF Basic React App</title>
     <script type=module>
-      import lif from 'https://unpkg.com/lif-kernel@1.1.8/boot.js'; // prod net
+      //import lif from 'https://unpkg.com/lif-kernel@1.1.8/boot.js'; // prod net
       //import lif from './node_modules/lif-kernel/boot.js'; // local dev
-      //import lif from '../lif-kernel/boot.js'; // local dev
-      await lif.boot.boot_app({app: 'lif-basic/main.tsx',
-        map: {'lif-basic': '/'}, // local dev
-      });
+      import lif from '../lif-kernel/boot.js'; // local dev
+      await lif.boot.boot_app({lif: {webapp: 'lif-basic/main.tsx',
+        dependencies: {'lif-basic': '/'}, // local dev
+      }});
     </script>
   </head>
   <body>
