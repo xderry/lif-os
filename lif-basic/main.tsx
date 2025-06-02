@@ -16,7 +16,8 @@ link.rel = 'stylesheet';
 link.href = 'style.css';
 document.head.appendChild(link);
 // start app
-const root = createRoot(document.getElementById("root"));
+let _root = document.body.appendChild(document.createElement('div'));
+let root = createRoot(_root);
 root.render(<App />);
 // playground
 let play = 0;
