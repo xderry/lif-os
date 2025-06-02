@@ -3,9 +3,9 @@
     <script type=module>
       //import lif from 'https://unpkg.com/lif-kernel@1.1.7/boot.js'; // prod net
       import lif from '../lif-kernel/boot.js'; // local dev
-      await lif.boot.boot_app({app: 'lif-os/lif-os-boot/main.tsx',
-        map: {'lif-os': '/lif-os'}, // local dev
-      });
+      await lif.boot.boot_app({lif: {webapp: 'lif-os/lif-os-boot/main.tsx',
+        dependencies: {'lif-os': '/lif-os'}, // local dev
+      }});
     </script>
     <div id=root></div>
   </body>
