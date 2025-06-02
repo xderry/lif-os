@@ -56,7 +56,7 @@ const loadImage = (regl, url) => {
 	};
 };
 
-const BASE_PATH = "/System/Matrix/";
+const BASE_PATH = "/System/Matrix";
 
 const loadText = (url) => {
 	let text = "";
