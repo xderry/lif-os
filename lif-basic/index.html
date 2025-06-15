@@ -1,10 +1,11 @@
 <html>
   <head>
     <script type=module>
-      import lif from 'https://unpkg.com/lif-kernel@1.1.14/boot.js';
+      //import lif from 'https://unpkg.com/lif-kernel@1.1.16/boot.js';
       //import lif from './node_modules/lif-kernel/boot.js'; // local dev
-      //import lif from '../lif-kernel/boot.js'; // local dev
+      import lif from '../lif-kernel/boot.js'; // local dev
       await lif.boot.boot_app({lif: {webapp: 'lif-basic@1.1.14/main.tsx',
+      //await lif.boot.boot_app({lif: {webapp: 'lif-basic/main.tsx',
         //dependencies: {'lif-basic': '/'}, // local dev
       }});
     </script>
