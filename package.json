@@ -1,13 +1,13 @@
 {
   "name": "lif-os",
-  "version": "2.0.0",
+  "version": "1.2.0",
   "description": "Desktop environment in the browser",
   "author": {
     "name": "Dustin Brett",
     "email": "dustinbrett@gmail.com",
     "url": "https://dustinbrett.com"
   },
-  "license": "MIT",
+  "license": "JPL MIT CHABAD",
   "browserslist": [
     "defaults and supports es6 and not ie 11 and >1%"
   ],
