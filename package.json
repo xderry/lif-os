@@ -66,6 +66,9 @@
     "react-rnd/re-resizable": "6.10.1"
   },
   "dependencies": {
+    "dns2": "2.0.1",
+    "acme-client": "5.0.0",
+    "@peculiar/x509": "1.9.3",
     "lif-kernel": "^1.1.10",
     "@babel/standalone": "^7.26.2",
     "@mlc-ai/web-llm": "^0.2.76",
