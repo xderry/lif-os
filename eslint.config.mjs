@@ -22,12 +22,13 @@ const compat = new FlatCompat({
   allConfig: js.configs.all
 });
 
-delete globals.browser['AudioWorkletGlobalScope ']; // bug in eslint 9.15.0
+//delete globals.browser['AudioWorkletGlobalScope ']; // bug in eslint 9.15.0
 export default [...compat.extends("eslint:recommended"), {
   plugins: {},
   languageOptions: {
     globals: {
       ...globals.browser,
+      Buffer: true, /* node-env */
     },
     ecmaVersion: 'latest',
     sourceType: "module",
