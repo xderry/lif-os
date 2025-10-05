@@ -16,6 +16,11 @@ const useWorker = <T>(
           passive: true,
         });
       }
+      // XXX bug in Chrome: {type: 'module'} workers miss during loading
+      // the messages. Need to first wait for a message from the worker that
+      // its ready, and only then to init.
+      // gets missed between here and
+      // components/system/Desktop/Wallpapers/ShaderToy/CoastalLandscape/wallpaper.worker.ts
       worker.current.postMessage("init");
     }
 
