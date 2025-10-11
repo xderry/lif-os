@@ -1,5 +1,5 @@
 /*global importScripts*/
 let path_dir = path=>path.match(/(^.*\/)?([^/]*)$/)?.[1]||'';
 let u = new URLSearchParams(location.search);
-let base = u.get('lif_kernel_base') || path_dir(location.pathname);
-importScripts(base+'kernel.js'); // https://unpkg.com/lif-kernel@1.1.3/kernel.js
+let base = u.get('lif_kernel_base') || path_dir(location.pathname).slice(0, -1);
+importScripts(base+'/kernel.js');
