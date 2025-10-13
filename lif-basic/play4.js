@@ -2,7 +2,7 @@ import 'https://unpkg.com/@babel/standalone@7.26.4/babel.js';
 let Babel = window.Babel;
 import React from "https://esm.sh/react@19/?dev";
 import ReactDOMClient from "https://esm.sh/react-dom@19/client?dev";
-import {EditorView, basicSetup} from "https://esm.sh/codemirror"
+import {EditorView, basicSetup} from "https://esm.sh/codemirror";
 let CodeMirror = window.CodeMirror;
 //import CodeMirror from "https://esm.sh/codemirror"
 let parser = Babel.packages.parser;
@@ -149,7 +149,7 @@ let assert_eq = (exp, res)=>{
     return;
   console.error('test FAIL: exp', exp, 'res', res);
   throw Error('test FAIL');
-}
+};
 function test_Scroll(){
   let t = v=>assert_eq(v, s.out());
   let s = Scroll('0123456789abcdef');
