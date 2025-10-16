@@ -15,8 +15,8 @@ const App = () => {
 
   return (
     <div onMouseMove={onMouseMove}>
-      <h1>Hello React! ⚛️</h1>
-      <p>Building user interfaces.</p>
+      <h1>Hello Life! <img src="/favicon.ico" /></h1>
+      <p>Building forever applications.</p>
     </div>
   );
 };
