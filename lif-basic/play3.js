@@ -1,5 +1,13 @@
 import Keyboard from 'simple-keyboard@3.8.53';
-
+function playground(){
+  let play = 0;
+  if (play){
+    let {create} = await import('./play3.js');
+    let m = await import('./fetch_tr.js');
+    let p = create();
+    m.init_ev(p.ev);
+  }
+}
 let play = {};
 function onChange(input){
   //document.querySelector(".input").value = input;
