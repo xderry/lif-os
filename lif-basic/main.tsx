@@ -22,7 +22,7 @@ root.render(<App />);
 // playground
 let play = 0;
 if (play){
-  let {create} = await import('./play.js');
+  let {create} = await import('./play3.js');
   let m = await import('./fetch_tr.js');
   let p = create();
   m.init_ev(p.ev);
