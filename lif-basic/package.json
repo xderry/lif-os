@@ -15,7 +15,8 @@
   "lif": {
     "web_exports": {
       "/style.css": "./style.css"
-    }
+    },
+    "webapp": "./main.tsx"
   },
   "dependencies": {
     "lif-kernel": "^1.3.1",
