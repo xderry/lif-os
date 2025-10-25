@@ -3,7 +3,7 @@ window.React = React;
 import {Buffer} from 'buffer';
 window.Buffer = Buffer;
 console.log('os boot started');
-import {createRoot} from "react-dom";
+import {createRoot} from "react-dom/client";
 let App = (await import('pages/_app.tsx')).default;
 //import App from "pages/_app.tsx";
 let _root = document.body.appendChild(document.createElement('div'));
