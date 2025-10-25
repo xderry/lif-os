@@ -1,6 +1,6 @@
 {
   "name": "lif-os",
-  "version": "1.3.0",
+  "version": "1.3.2",
   "description": "Desktop environment in the browser",
   "author": {
     "name": "Dustin Brett",
@@ -69,7 +69,7 @@
     "dns2": "2.0.1",
     "acme-client": "5.0.0",
     "@peculiar/x509": "1.9.3",
-    "lif-kernel": "^1.1.10",
+    "lif-kernel": "^1.3.2",
     "@babel/standalone": "^7.26.2",
     "@mlc-ai/web-llm": "^0.2.76",
     "@monaco-editor/loader": "^1.4.0",
