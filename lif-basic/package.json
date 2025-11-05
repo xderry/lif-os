@@ -1,6 +1,6 @@
 {
   "name": "lif-basic",
-  "version": "2.0.0",
+  "version": "25.11.4",
   "description": "basic shalom world",
   "author": {
     "name": "Jungo Publishing Labs",
@@ -19,7 +19,7 @@
     "webapp": "./main.tsx"
   },
   "dependencies": {
-    "lif-kernel": "^2.0.0",
+    "lif-kernel": "^25.11.4",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "canvas-confetti": "^1.9.3"
