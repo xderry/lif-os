@@ -28,6 +28,7 @@ globalThis.addEventListener(
       try {
         globalThis.effectInit(canvas);
       } catch (error) {
+        console.error(error);
         globalThis.postMessage({
           message: (error as Error)?.message,
           type: "[error]",
