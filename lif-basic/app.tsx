@@ -17,7 +17,7 @@ const App = () => {
     <div onMouseMove={onMouseMove}>
       <h1>Hello Life!</h1>
       <p><img src="/favicon.ico" /></p>
-      <p>Building forever applications.</p>
+      <p>Build forever apps</p>
     </div>
   );
 };
