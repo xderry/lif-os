@@ -70,7 +70,7 @@
     "acme-client": "5.0.0",
     "@peculiar/x509": "1.9.3",
     "lif-kernel": "^25.11.4",
-    "@babel/standalone": "^7.26.2",
+    "@babel/standalone": "^7.29.1",
     "@mlc-ai/web-llm": "^0.2.76",
     "@monaco-editor/loader": "^1.4.0",
     "@panzoom/panzoom": "^4.5.1",
